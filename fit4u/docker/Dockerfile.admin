@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+FROM node:20-alpine AS base
+WORKDIR /app
+RUN corepack enable
+
+FROM base AS deps
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY apps/admin/package.json apps/admin/package.json
+COPY packages ./packages
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS build
+COPY . .
+# `VITE_API_URL` doit être présent AU BUILD (Vite l'inline dans le bundle
+# statique, il n'existe aucune lecture d'env au runtime pour un SPA) —
+# fourni par Railway comme variable de service classique, transmise ici
+# en argument de build.
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+RUN pnpm --filter @fit4u/admin build
+
+FROM base AS runner
+WORKDIR /app
+RUN npm install -g serve@14
+COPY --from=build /app/apps/admin/dist ./dist
+EXPOSE 4173
+CMD ["serve", "-s", "dist", "-l", "4173"]

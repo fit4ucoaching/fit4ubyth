@@ -5,10 +5,6 @@ import { Badge, Card } from "../components/ui";
 import { useBansList, useLiftBan, useReportsList, useReviewReport } from "../services/useAdminCommunity";
 import { useUiStore } from "../store/uiStore";
 
-const STATUS_VARIANT: Record<string, "success" | "danger" | "neutral"> = {
-  PENDING: "neutral", REVIEWED: "neutral", DISMISSED: "success", ACTIONED: "danger",
-};
-
 const TARGET_LABEL: Record<string, string> = { POST: "Publication", COMMENT: "Commentaire", USER: "Utilisateur" };
 
 /**

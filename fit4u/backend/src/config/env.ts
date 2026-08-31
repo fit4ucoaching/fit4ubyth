@@ -18,6 +18,7 @@ const envSchema = z.object({
   API_VERSION: z.string().default("v1"),
   APP_URL: z.string().url().default("http://localhost:4000"),
   WEB_APP_URL: z.string().url().default("http://localhost:5173"),
+  ADMIN_APP_URL: z.string().url().default("http://localhost:5174"),
 
   // ── Base de données ──
   DATABASE_URL: z.string().min(1, "DATABASE_URL est requis"),

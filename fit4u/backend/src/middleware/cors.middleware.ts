@@ -2,7 +2,7 @@ import cors from "cors";
 
 import { env, isProduction } from "../config/env";
 
-const ALLOWED_ORIGINS = [env.WEB_APP_URL, "http://localhost:5173", "http://localhost:5174"];
+const ALLOWED_ORIGINS = [env.WEB_APP_URL, env.ADMIN_APP_URL, "http://localhost:5173", "http://localhost:5174"];
 
 /**
  * CORS restreint aux origines connues (web, admin) en production. En
