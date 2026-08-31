@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Fit4U by TH",
+    "slug": "fit4u",
+    "scheme": "fit4u",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/logo-transparent.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
+    },
+    "ios": { "supportsTablet": false, "bundleIdentifier": "app.fit4u.mobile" },
+    "android": {
+      "package": "app.fit4u.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0A"
+      }
+    },
+    "plugins": ["expo-secure-store"]
+  }
+}

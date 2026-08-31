@@ -1,0 +1,9 @@
+# Propriétaires par défaut — à ajuster une fois l'équipe constituée.
+# Toute PR touchant ces chemins nécessite une revue du propriétaire désigné.
+*                           @fit4u/core-team
+/prisma/                    @fit4u/backend-team
+/backend/src/ai/            @fit4u/ai-team
+/backend/src/payments/      @fit4u/backend-team
+/backend/src/shopify/       @fit4u/backend-team
+/apps/admin/                @fit4u/backend-team
+/.github/workflows/         @fit4u/devops-team

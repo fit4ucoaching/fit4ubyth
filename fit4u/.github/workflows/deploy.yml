@@ -1,0 +1,78 @@
+name: Deploy
+
+# Déploiement contrôlé (Volume 8 §7, §34-36) :
+#   push develop → staging (automatique) → smoke tests
+#   push main    → production (nécessite une approbation manuelle via
+#                  l'environnement GitHub "production", à configurer dans
+#                  Settings → Environments → Required reviewers)
+#
+# Ce fichier définit le FLUX de déploiement ; les commandes de déploiement
+# réelles (`### À CONFIGURER ###`) dépendent de l'infrastructure
+# effectivement choisie (Railway/Render/Fly.io/AWS ECS/etc., non tranchée à
+# ce stade du projet) — voir docs/production.md et docs/staging.md.
+on:
+  push:
+    branches: [develop, main]
+
+jobs:
+  deploy-staging:
+    name: Déploiement Staging
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Déployer le backend sur Staging
+        run: |
+          echo "### À CONFIGURER : commande de déploiement propre à l'hébergeur choisi ###"
+          echo "Exemple générique : flyctl deploy --app fit4u-backend-staging --config fly.staging.toml"
+        env:
+          DEPLOY_TOKEN: ${{ secrets.STAGING_DEPLOY_TOKEN }}
+      - name: Appliquer les migrations Prisma sur Staging (§24 : backup → migration → tests → validation)
+        run: |
+          echo "### À CONFIGURER ### — prisma migrate deploy contre DATABASE_URL de Staging"
+          echo "Précédé obligatoirement d'un backup vérifié (voir docs/disaster-recovery.md)"
+
+  smoke-tests-staging:
+    name: Smoke Tests (Staging)
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier la disponibilité de l'API (§47)
+        run: |
+          curl -sf "${{ vars.STAGING_URL }}/health" || (echo "❌ Liveness KO" && exit 1)
+          curl -sf "${{ vars.STAGING_URL }}/health/ready" || (echo "❌ Readiness KO (DB/Redis)" && exit 1)
+      - name: Vérifier l'authentification (endpoint public accessible)
+        run: curl -sf -X POST "${{ vars.STAGING_URL }}/api/v1/auth/login" -H "Content-Type: application/json" -d '{}' -o /dev/null -w "%{http_code}" | grep -q "400\|422" || (echo "❌ Endpoint auth ne répond pas comme attendu" && exit 1)
+      - name: Vérifier la documentation OpenAPI exposée
+        run: curl -sf "${{ vars.STAGING_URL }}/docs.json" -o /dev/null
+
+  deploy-production:
+    name: Déploiement Production (approbation requise)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production # Configurer "Required reviewers" dans GitHub — aucun déploiement sans validation humaine explicite.
+      url: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Déployer le backend sur Production
+        run: |
+          echo "### À CONFIGURER : commande de déploiement propre à l'hébergeur choisi ###"
+        env:
+          DEPLOY_TOKEN: ${{ secrets.PRODUCTION_DEPLOY_TOKEN }}
+      - name: Appliquer les migrations Prisma sur Production
+        run: echo "### À CONFIGURER ### — précédé d'un backup vérifié, voir docs/production.md#migrations"
+
+  smoke-tests-production:
+    name: Smoke Tests (Production)
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier la disponibilité de l'API
+        run: |
+          curl -sf "${{ vars.PRODUCTION_URL }}/health" || (echo "❌ Liveness KO — envisager un rollback (docs/rollback.md)" && exit 1)
+          curl -sf "${{ vars.PRODUCTION_URL }}/health/ready" || (echo "❌ Readiness KO — envisager un rollback" && exit 1)

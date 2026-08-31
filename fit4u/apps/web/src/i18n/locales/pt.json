@@ -1,0 +1,10 @@
+{
+  "common": { "appName": "Fit4U by TH" },
+  "auth": {
+    "login": "",
+    "register": "",
+    "emailLabel": "",
+    "passwordLabel": ""
+  },
+  "coachTeddy": { "greeting": "" }
+}

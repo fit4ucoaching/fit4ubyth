@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Variables CSS générées à partir des mêmes tokens que @fit4u/ui
+ * (darkPalette/lightPalette) — voir ThemeProvider.tsx qui les applique sur
+ * <html> selon le mode résolu (Light/Dark/System, Volume 4).
+ */
+:root,
+.theme-dark {
+  --color-background: #0A0A0A;
+  --color-surface: #171717;
+  --color-surface-elevated: #212121;
+  --color-primary: #FF6B00;
+  --color-primary-muted: #FF8A33;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #B3B3B3;
+  --color-text-tertiary: #767676;
+  --color-border: #2A2A2A;
+  --color-success: #2ECC71;
+  --color-warning: #F1C40F;
+  --color-danger: #E74C3C;
+}
+
+.theme-light {
+  --color-background: #FFFFFF;
+  --color-surface: #F2F2F3;
+  --color-surface-elevated: #FFFFFF;
+  --color-primary: #FF6B00;
+  --color-primary-muted: #FF8A33;
+  --color-text-primary: #0A0A0A;
+  --color-text-secondary: #4B4B4D;
+  --color-text-tertiary: #8A8A8E;
+  --color-border: #E4E4E7;
+  --color-success: #2ECC71;
+  --color-warning: #F1C40F;
+  --color-danger: #E74C3C;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+}

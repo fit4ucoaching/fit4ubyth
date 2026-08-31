@@ -1,0 +1,10 @@
+{
+  "common": { "appName": "Fit4U by TH" },
+  "auth": {
+    "login": "Se connecter",
+    "register": "Créer un compte",
+    "emailLabel": "Adresse email",
+    "passwordLabel": "Mot de passe"
+  },
+  "coachTeddy": { "greeting": "Salut, je suis Teddy, ton coach !" }
+}

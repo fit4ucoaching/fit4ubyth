@@ -1,0 +1,149 @@
+name: CI
+
+# Déclenchée sur toute PR et sur push vers main/develop (Volume 8 §7-8) —
+# "Toute Pull Request doit déclencher automatiquement lint/typecheck/
+# tests/build/contrôles de sécurité. Une PR ne doit pas être fusionnée si
+# les contrôles critiques échouent" : voir la protection de branche
+# documentée dans `docs/local-development.md#branches`, à configurer côté
+# réglages GitHub (Settings → Branches → Require status checks) — ce
+# fichier définit les checks, leur caractère bloquant est une config du
+# dépôt GitHub, pas du YAML lui-même.
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  quality:
+    name: Lint · Typecheck · Tests unitaires
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fit4u
+          POSTGRES_PASSWORD: fit4u
+          POSTGRES_DB: fit4u_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint (§11 — aucun warning critique ignoré)
+        run: pnpm lint
+      - name: Typecheck (§13 — tsc --noEmit, zéro erreur toléré)
+        run: pnpm typecheck
+      - name: Prisma generate
+        run: pnpm prisma:generate
+      - name: Tests unitaires (§14 — auth/entitlements/VIP/abonnements/nutrition/calculs/permissions/paiements)
+        run: pnpm test
+        env:
+          DATABASE_URL: postgresql://fit4u:fit4u@localhost:5432/fit4u_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-secret-not-for-production-min-32-chars
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-not-for-prod-32ch
+          STRIPE_SECRET: sk_test_placeholder
+          STRIPE_WEBHOOK_SECRET: whsec_placeholder
+          OPENAI_API_KEY: sk-placeholder
+
+  integration:
+    name: Tests d'intégration (API → Service → Repository → PostgreSQL)
+    needs: quality
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fit4u
+          POSTGRES_PASSWORD: fit4u
+          POSTGRES_DB: fit4u_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - name: Migrations sur base de test (§23 — teste aussi la migration elle-même)
+        run: pnpm --filter @fit4u/backend exec prisma migrate deploy --schema=../../prisma/schema.prisma
+        env:
+          DATABASE_URL: postgresql://fit4u:fit4u@localhost:5432/fit4u_test
+      - name: Tests d'intégration
+        run: pnpm --filter @fit4u/backend test -- tests/
+        env:
+          DATABASE_URL: postgresql://fit4u:fit4u@localhost:5432/fit4u_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-secret-not-for-production-min-32-chars
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-not-for-prod-32ch
+
+  security:
+    name: Contrôles de sécurité (§19, §43)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # historique complet requis par le scan de secrets
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - name: Audit des dépendances npm (échoue sur vulnérabilité HIGH/CRITICAL)
+        run: pnpm audit --audit-level=high
+        continue-on-error: true # voir docs/deployment.md#gestion-des-vulnérabilités — ne bloque pas encore la CI, remonté en revue manuelle
+      - name: Scan de secrets accidentellement commités (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lint des Dockerfiles (Hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/Dockerfile.backend
+
+  build:
+    name: Build des packages
+    needs: [quality, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma:generate
+      - run: pnpm build

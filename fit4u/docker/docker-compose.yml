@@ -1,0 +1,72 @@
+version: "3.9"
+
+# Environnement local reproductible (Volume 8 §6) — services minimaux
+# obligatoires : postgres, redis, backend. Aucun service optionnel
+# (monitoring, etc.) n'est requis pour démarrer (§5).
+
+networks:
+  fit4u_internal:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fit4u_postgres
+    restart: unless-stopped
+    networks: [fit4u_internal]
+    environment:
+      POSTGRES_USER: fit4u
+      POSTGRES_PASSWORD: fit4u
+      POSTGRES_DB: fit4u_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - fit4u_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fit4u"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fit4u_redis
+    restart: unless-stopped
+    networks: [fit4u_internal]
+    ports:
+      - "6379:6379"
+    volumes:
+      - fit4u_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: fit4u_backend
+    restart: unless-stopped
+    networks: [fit4u_internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Chemin aligné sur `docs/local-development.md` (cp backend/.env.example backend/.env).
+    env_file:
+      - ../backend/.env
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  fit4u_postgres_data:
+  fit4u_redis_data:

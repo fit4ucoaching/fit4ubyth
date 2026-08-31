@@ -1,0 +1,2305 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Fit4U by TH — Schéma Prisma canonique (Master Prompt Volume 2/8)
+// Database Architect : PostgreSQL 16+ / Prisma ORM
+//
+// CONVENTIONS GLOBALES (voir docs/DATABASE_ARCHITECTURE.md pour le détail) :
+//   • Toutes les tables : id UUID (gen_random_uuid()) en clé primaire
+//   • Toutes les tables : createdAt / updatedAt en TIMESTAMPTZ (UTC)
+//   • Tables métier      : deletedAt (soft delete) — jamais de suppression physique
+//   • Tables de log/jonction/historique : append-only, pas de soft delete
+//   • Nommage : tables snake_case (@@map), modèles PascalCase,
+//               colonnes camelCase (@map quand nécessaire)
+//   • 12 domaines fonctionnels, dans l'ordre du Master Prompt Volume 2
+// ═══════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENUMS GLOBAUX
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Statut du compte utilisateur.
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+  DELETED
+}
+
+/// Palier d'abonnement — la vérité métier finale reste `VipAccess` pour VIP.
+enum SubscriptionType {
+  FREE
+  PREMIUM
+  PRO
+  VIP
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum WorkoutStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum GoalType {
+  WEIGHT_LOSS
+  MUSCLE_GAIN
+  MAINTENANCE
+  PERFORMANCE
+  ENDURANCE
+  HYROX
+  RUNNING
+  FOOTBALL
+  MOBILITY
+}
+
+enum DifficultyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum EquipmentType {
+  BODYWEIGHT
+  DUMBBELLS
+  BARBELL
+  MACHINE
+  RESISTANCE_BAND
+  KETTLEBELL
+  CARDIO
+  OTHER
+}
+
+enum NotificationType {
+  PUSH
+  EMAIL
+  IN_APP
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+// ── Enums complémentaires (nécessaires à la cohérence référentielle du schéma,
+//    non exhaustivement listés dans le Master Prompt mais requis pour éviter
+//    tout champ libre non contrôlé sur un statut métier) ────────────────────
+
+enum DeviceOS {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+  APPLE
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  BLOCKED
+}
+
+enum GroupRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum PostVisibility {
+  PUBLIC
+  FRIENDS
+  PRIVATE
+}
+
+enum EventStatus {
+  SCHEDULED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum LogLevel {
+  INFO
+  WARNING
+  ERROR
+  DEBUG
+}
+
+enum AIMessageRole {
+  USER
+  TEDDY
+  SYSTEM
+}
+
+enum AIPlanStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum ChallengeStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+enum RewardType {
+  BADGE_UNLOCK
+  DISCOUNT_CODE
+  FREE_PRODUCT
+  XP_BOOST
+  PREMIUM_DAYS
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum MeasurementSystem {
+  METRIC
+  IMPERIAL
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 1 — AUTHENTIFICATION
+// Tables : users, sessions, refresh_tokens, password_reset_tokens,
+//          email_verification_tokens, devices
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Table centrale du système. Toutes les relations inverses des 12 domaines
+/// sont déclarées ici (voir commentaire "RELATIONS INVERSES" en fin de modèle) —
+/// c'est le seul modèle dont la définition est assemblée progressivement dans ce
+/// fichier pour rester lisible malgré son rôle de "hub" central.
+model User {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String       @unique @db.VarChar(255)
+  passwordHash String?      @map("password_hash") @db.VarChar(255)
+  authProvider AuthProvider @default(EMAIL) @map("auth_provider")
+  status       UserStatus   @default(PENDING)
+  locale       String       @default("fr") @db.VarChar(5)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  // ── Domaine 1 — Authentification ──
+  sessions                 Session[]
+  refreshTokens            RefreshToken[]
+  passwordResetTokens      PasswordResetToken[]
+  emailVerificationTokens  EmailVerificationToken[]
+  devices                  Device[]
+
+  // ── Domaine 2 — Profils ──
+  profile              Profile?
+  preferences          UserPreference?
+  privacySettings      PrivacySetting?
+  notificationSettings NotificationSetting[]
+  userRoles            UserRole[]
+
+  // ── Domaine 5 — Entraînements ──
+  workoutSessions WorkoutSession[]
+  personalRecords PersonalRecord[]
+  favoriteExercises FavoriteExercise[]
+
+  // ── Domaine 6 — Nutrition ──
+  mealPlans      MealPlan[]
+  waterTrackings WaterTracking[]
+  shoppingLists  ShoppingList[]
+  nutritionGoals NutritionGoal[]
+
+  // ── Domaine 7 — Teddy AI ──
+  aiConversations   AIConversation[]
+  aiWorkoutPlans    AIWorkoutPlan[]
+  aiNutritionPlans  AINutritionPlan[]
+  aiProgressReports AIProgressReport[]
+  aiChallenges      AIChallenge[]
+  aiMemories        AIMemory[]
+
+  // ── Domaine 8 — Progression ──
+  weightHistory     WeightHistory[]
+  measurements      Measurement[]
+  progressPhotos    ProgressPhoto[]
+  bodyCompositions  BodyComposition[]
+  goals             Goal[]
+
+  // ── Domaine 9 — Gamification ──
+  xp            UserXp?
+  badges        UserBadge[]
+  challenges    UserChallenge[]
+  rewardHistory RewardHistory[]
+
+  // ── Domaine 10 — Communauté ──
+  posts                Post[]
+  comments             Comment[]
+  likes                Like[]
+  friendshipsSent      Friendship[]        @relation("FriendshipRequester")
+  friendshipsReceived  Friendship[]        @relation("FriendshipAddressee")
+  groupMemberships     GroupMember[]
+  eventsOrganized      Event[]             @relation("EventOrganizer")
+  eventParticipations  EventParticipant[]
+
+  // ── Domaine 11 — Boutique ──
+  cart     Cart?
+  orders   Order[]
+  payments Payment[]
+
+  // ── Domaine 12 — Administration ──
+  vipAccess               VipAccess?        @relation("VipAccessBeneficiary")
+  vipAccessGranted        VipAccess[]       @relation("VipAccessCreatedBy")
+  subscriptions           Subscription[]
+  adminLogs               AdminLog[]        @relation("AdminLogPerformedBy")
+  auditLogs               AuditLog[]        @relation("AuditLogUser")
+  supportTickets          SupportTicket[]   @relation("SupportTicketOwner")
+  assignedSupportTickets  SupportTicket[]   @relation("SupportTicketAssignee")
+  supportMessages         SupportMessage[]  @relation("SupportMessageSender")
+  reportsSubmitted        Report[]          @relation("ReportReporter")
+  reportsReviewed         Report[]          @relation("ReportReviewer")
+  communityBansReceived   CommunityBan[]    @relation("CommunityBanUser")
+  communityBansIssued     CommunityBan[]    @relation("CommunityBanBanner")
+  promptOverridesCreated  PromptOverride[]  @relation("PromptOverrideCreator")
+
+  @@index([email])
+  @@index([status])
+  @@map("users")
+}
+
+/// Session active (web/mobile) — distincte du refresh token JWT pour permettre
+/// une révocation ciblée par appareil/navigateur depuis le BackOffice.
+model Session {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId     String?   @map("device_id") @db.Uuid
+  device       Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  ipAddress    String?   @map("ip_address") @db.VarChar(45)
+  userAgent    String?   @map("user_agent")
+  lastActiveAt DateTime  @default(now()) @map("last_active_at") @db.Timestamptz(6)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// Refresh tokens JWT — rotation à chaque utilisation (révocation de l'ancien).
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+/// Appareil physique (mobile/web) — utilisé pour le push (NotificationType.PUSH)
+/// et l'affichage "Sessions actives" côté utilisateur.
+model Device {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  os           DeviceOS
+  pushToken    String?   @map("push_token") @db.VarChar(255)
+  model        String?   @db.VarChar(100)
+  appVersion   String?   @map("app_version") @db.VarChar(20)
+  lastSeenAt   DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  sessions Session[]
+
+  @@index([userId])
+  @@map("devices")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 2 — PROFILS
+// Tables : profiles, user_preferences, privacy_settings,
+//          notification_settings, user_roles, roles
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Données personnelles/physiques — séparées de `User` (identité/auth) pour
+/// isoler ce qui change souvent (poids, objectifs) de ce qui est stable (email).
+model Profile {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @unique @map("user_id") @db.Uuid
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName      String    @map("first_name") @db.VarChar(50)
+  lastName       String    @map("last_name") @db.VarChar(50)
+  avatarUrl      String?   @map("avatar_url")
+  bio            String?   @db.VarChar(280)
+  gender         Gender?
+  birthDate      DateTime? @map("birth_date") @db.Date
+  heightCm       Decimal?  @map("height_cm") @db.Decimal(5, 2)
+  country        String?   @db.VarChar(2)
+  isPremium      Boolean   @default(false) @map("is_premium")
+  subscription   SubscriptionType @default(FREE)
+  /// Référence externe Stripe (Volume 7 §14) — jamais recréée à chaque paiement, réutilisée pour les abonnements.
+  stripeCustomerId String? @unique @map("stripe_customer_id") @db.VarChar(100)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("profiles")
+}
+
+/// Préférences fonctionnelles (unités, langue d'entraînement, objectifs par défaut).
+model UserPreference {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String            @unique @map("user_id") @db.Uuid
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  measurementSystem  MeasurementSystem @default(METRIC) @map("measurement_system")
+  primaryGoal        GoalType?         @map("primary_goal")
+  preferredEquipment EquipmentType[]   @map("preferred_equipment")
+  restDayReminder    Boolean           @default(true) @map("rest_day_reminder")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("user_preferences")
+}
+
+/// Paramètres de confidentialité — visibilité du profil, du poids, des posts.
+model PrivacySetting {
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String         @unique @map("user_id") @db.Uuid
+  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileVisibility   PostVisibility @default(FRIENDS) @map("profile_visibility")
+  showWeightHistory   Boolean        @default(false) @map("show_weight_history")
+  showInLeaderboards  Boolean        @default(true) @map("show_in_leaderboards")
+  allowFriendRequests Boolean        @default(true) @map("allow_friend_requests")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("privacy_settings")
+}
+
+/// Canaux de notification activés par type (`NotificationType`).
+model NotificationSetting {
+  id        String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String            @unique @map("user_id") @db.Uuid
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  isEnabled Boolean           @default(true) @map("is_enabled")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, type])
+  @@map("notification_settings")
+}
+
+/// Rôle applicatif dynamique (RBAC) — remplace l'enum statique `UserRole` du
+/// Volume 1 pour permettre la création de rôles métier sans migration
+/// (ex. "Coach Nutrition", "Modérateur Communauté").
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique @db.VarChar(50)
+  description String?
+  permissions Json     @default("[]")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+/// Table de jonction User <-> Role (many-to-many).
+model UserRole {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId     String   @map("role_id") @db.Uuid
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 3 — EXERCICES
+// Tables : muscle_groups, exercise_categories, equipments, exercises,
+//          exercise_variants, exercise_images, exercise_videos, exercise_tips,
+//          exercise_mistakes, exercise_restrictions
+// (+ tables de jonction techniques exercise_muscle_groups, exercise_equipments
+//    nécessaires à la normalisation many-to-many — non listées nommément dans
+//    le Master Prompt mais requises pour éviter toute dénormalisation)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model MuscleGroup {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String  @unique @db.VarChar(50)
+  slug        String  @unique @db.VarChar(50)
+  bodyRegion  String? @map("body_region") @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  primaryExercises Exercise[]            @relation("ExercisePrimaryMuscle")
+  exerciseLinks    ExerciseMuscleGroup[]
+
+  @@map("muscle_groups")
+}
+
+model ExerciseCategory {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String  @unique @db.VarChar(50)
+  slug        String  @unique @db.VarChar(50)
+  description String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  exercises Exercise[]
+
+  @@map("exercise_categories")
+}
+
+model Equipment {
+  id   String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name String        @unique @db.VarChar(50)
+  slug String        @unique @db.VarChar(50)
+  type EquipmentType
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  exerciseLinks ExerciseEquipment[]
+
+  @@map("equipments")
+}
+
+/// Table de référence — un exercice = une fiche complète et réutilisable dans
+/// tous les programmes (`program_exercises`) et séances (`workout_exercises`).
+model Exercise {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String          @db.VarChar(100)
+  slug                String          @unique @db.VarChar(100)
+  description         String?
+  instructions        String?
+  categoryId          String          @map("category_id") @db.Uuid
+  category            ExerciseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  primaryMuscleId     String          @map("primary_muscle_id") @db.Uuid
+  primaryMuscle       MuscleGroup     @relation("ExercisePrimaryMuscle", fields: [primaryMuscleId], references: [id], onDelete: Restrict)
+  difficultyLevel     DifficultyLevel @default(BEGINNER) @map("difficulty_level")
+  caloriesPerMinute   Decimal?        @map("calories_per_minute") @db.Decimal(5, 2)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  variants         ExerciseVariant[]
+  images           ExerciseImage[]
+  videos           ExerciseVideo[]
+  tips             ExerciseTip[]
+  mistakes         ExerciseMistake[]
+  restrictions     ExerciseRestriction[]
+  muscleGroupLinks ExerciseMuscleGroup[]
+  equipmentLinks   ExerciseEquipment[]
+  programExercises ProgramExercise[]
+  workoutExercises WorkoutExercise[]
+  personalRecords  PersonalRecord[]
+  favoritedBy      FavoriteExercise[]
+
+  @@index([categoryId])
+  @@index([primaryMuscleId])
+  @@map("exercises")
+}
+
+/// Muscles secondaires sollicités (many-to-many Exercise <-> MuscleGroup).
+model ExerciseMuscleGroup {
+  exerciseId    String      @map("exercise_id") @db.Uuid
+  exercise      Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  muscleGroupId String      @map("muscle_group_id") @db.Uuid
+  muscleGroup   MuscleGroup @relation(fields: [muscleGroupId], references: [id], onDelete: Cascade)
+
+  @@id([exerciseId, muscleGroupId])
+  @@map("exercise_muscle_groups")
+}
+
+/// Matériel requis (many-to-many Exercise <-> Equipment).
+model ExerciseEquipment {
+  exerciseId  String    @map("exercise_id") @db.Uuid
+  exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  equipmentId String    @map("equipment_id") @db.Uuid
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@id([exerciseId, equipmentId])
+  @@map("exercise_equipments")
+}
+
+/// Variante d'un exercice (ex. "Pompes genoux au sol" pour "Pompes").
+model ExerciseVariant {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exerciseId      String          @map("exercise_id") @db.Uuid
+  exercise        Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  name            String          @db.VarChar(100)
+  description     String?
+  difficultyLevel DifficultyLevel @map("difficulty_level")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([exerciseId])
+  @@map("exercise_variants")
+}
+
+model ExerciseImage {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exerciseId String   @map("exercise_id") @db.Uuid
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  url        String
+  sortOrder  Int      @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([exerciseId])
+  @@map("exercise_images")
+}
+
+model ExerciseVideo {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exerciseId      String   @map("exercise_id") @db.Uuid
+  exercise        Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  url             String
+  durationSeconds Int?     @map("duration_seconds")
+  sortOrder       Int      @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([exerciseId])
+  @@map("exercise_videos")
+}
+
+model ExerciseTip {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exerciseId String   @map("exercise_id") @db.Uuid
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  content    String
+  sortOrder  Int      @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([exerciseId])
+  @@map("exercise_tips")
+}
+
+model ExerciseMistake {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exerciseId String   @map("exercise_id") @db.Uuid
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  content    String
+  sortOrder  Int      @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([exerciseId])
+  @@map("exercise_mistakes")
+}
+
+/// Exercice favori d'un utilisateur — table additive non prévue nommément au
+/// Volume 2 mais requise par la route `POST /exercises/favorite` du Volume 3
+/// (même logique que les 2 tables de jonction techniques déjà ajoutées au
+/// Domaine 3 — voir docs/DATABASE_ARCHITECTURE.md §1).
+model FavoriteExercise {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId String   @map("exercise_id") @db.Uuid
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([userId, exerciseId])
+  @@index([userId])
+  @@map("favorite_exercises")
+}
+
+/// Contre-indications médicales/physiques (ex. "Éviter en cas de lombalgie").
+model ExerciseRestriction {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exerciseId  String   @map("exercise_id") @db.Uuid
+  exercise    Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  description String
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([exerciseId])
+  @@map("exercise_restrictions")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 4 — PROGRAMMES
+// Tables : programs, program_categories, program_weeks, program_days,
+//          program_exercises, warmups, cooldowns, stretching_programs
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ProgramCategory {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String  @unique @db.VarChar(50)
+  slug        String  @unique @db.VarChar(50)
+  description String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  programs Program[]
+
+  @@map("program_categories")
+}
+
+/// Programme d'entraînement structuré (ex. "Prise de masse 12 semaines").
+model Program {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId      String          @map("category_id") @db.Uuid
+  category        ProgramCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name            String          @db.VarChar(150)
+  slug            String          @unique @db.VarChar(150)
+  description     String?
+  goalType        GoalType        @map("goal_type")
+  difficultyLevel DifficultyLevel @map("difficulty_level")
+  durationWeeks   Int             @map("duration_weeks")
+  coverImageUrl   String?         @map("cover_image_url")
+  isPremium       Boolean         @default(false) @map("is_premium")
+  isPublished     Boolean         @default(false) @map("is_published")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  weeks           ProgramWeek[]
+  workoutSessions WorkoutSession[]
+  aiWorkoutPlans  AIWorkoutPlan[]
+
+  @@index([categoryId])
+  @@index([goalType])
+  @@map("programs")
+}
+
+model ProgramWeek {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  programId  String  @map("program_id") @db.Uuid
+  program    Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  weekNumber Int     @map("week_number")
+  title      String? @db.VarChar(100)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  days ProgramDay[]
+
+  @@unique([programId, weekNumber])
+  @@index([programId])
+  @@map("program_weeks")
+}
+
+model ProgramDay {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  programWeekId String      @map("program_week_id") @db.Uuid
+  programWeek   ProgramWeek @relation(fields: [programWeekId], references: [id], onDelete: Cascade)
+  dayNumber     Int         @map("day_number")
+  title         String?     @db.VarChar(100)
+  isRestDay     Boolean     @default(false) @map("is_rest_day")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  exercises        ProgramExercise[]
+  warmups          Warmup[]
+  cooldowns        Cooldown[]
+  stretchingPrograms StretchingProgram[]
+
+  @@unique([programWeekId, dayNumber])
+  @@index([programWeekId])
+  @@map("program_days")
+}
+
+/// Association Exercise <-> ProgramDay avec la prescription (séries/reps/repos).
+model ProgramExercise {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  programDayId  String     @map("program_day_id") @db.Uuid
+  programDay    ProgramDay @relation(fields: [programDayId], references: [id], onDelete: Cascade)
+  exerciseId    String     @map("exercise_id") @db.Uuid
+  exercise      Exercise   @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  sortOrder     Int        @default(0) @map("sort_order")
+  sets          Int
+  reps          Int?
+  durationSeconds Int?     @map("duration_seconds")
+  restSeconds   Int        @default(60) @map("rest_seconds")
+  targetWeightKg Decimal?  @map("target_weight_kg") @db.Decimal(6, 2)
+  notes         String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([programDayId])
+  @@index([exerciseId])
+  @@map("program_exercises")
+}
+
+model Warmup {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  programDayId String     @map("program_day_id") @db.Uuid
+  programDay   ProgramDay @relation(fields: [programDayId], references: [id], onDelete: Cascade)
+  title        String     @db.VarChar(100)
+  description  String?
+  durationSeconds Int?    @map("duration_seconds")
+  sortOrder    Int        @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([programDayId])
+  @@map("warmups")
+}
+
+model Cooldown {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  programDayId String     @map("program_day_id") @db.Uuid
+  programDay   ProgramDay @relation(fields: [programDayId], references: [id], onDelete: Cascade)
+  title        String     @db.VarChar(100)
+  description  String?
+  durationSeconds Int?    @map("duration_seconds")
+  sortOrder    Int        @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([programDayId])
+  @@map("cooldowns")
+}
+
+model StretchingProgram {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  programDayId String     @map("program_day_id") @db.Uuid
+  programDay   ProgramDay @relation(fields: [programDayId], references: [id], onDelete: Cascade)
+  title        String     @db.VarChar(100)
+  description  String?
+  durationSeconds Int?    @map("duration_seconds")
+  sortOrder    Int        @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([programDayId])
+  @@map("stretching_programs")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 5 — ENTRAÎNEMENTS
+// Tables : workout_sessions, workout_exercises, workout_history,
+//          workout_notes, personal_records
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Séance réelle effectuée (ou planifiée) par un utilisateur — distincte de
+/// `ProgramDay` qui est la définition théorique du programme.
+model WorkoutSession {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId   String?       @map("program_id") @db.Uuid
+  program     Program?      @relation(fields: [programId], references: [id], onDelete: SetNull)
+  title       String        @db.VarChar(150)
+  status      WorkoutStatus @default(PLANNED)
+  startedAt   DateTime?     @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime?     @map("completed_at") @db.Timestamptz(6)
+  durationSeconds Int?      @map("duration_seconds")
+  caloriesBurned  Decimal?  @map("calories_burned") @db.Decimal(6, 2)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  exercises WorkoutExercise[]
+  history   WorkoutHistory[]
+  notes     WorkoutNote[]
+
+  @@index([userId])
+  @@index([startedAt])
+  @@index([completedAt])
+  @@map("workout_sessions")
+}
+
+/// Exécution réelle d'un exercice au sein d'une séance (séries/reps/poids réels).
+model WorkoutExercise {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workoutSessionId String         @map("workout_session_id") @db.Uuid
+  workoutSession   WorkoutSession @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  exerciseId       String         @map("exercise_id") @db.Uuid
+  exercise         Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  sortOrder        Int            @default(0) @map("sort_order")
+  setsCompleted    Int            @default(0) @map("sets_completed")
+  repsCompleted    Int?           @map("reps_completed")
+  weightUsedKg     Decimal?       @map("weight_used_kg") @db.Decimal(6, 2)
+  durationSeconds  Int?           @map("duration_seconds")
+  isCompleted      Boolean        @default(false) @map("is_completed")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workoutSessionId])
+  @@index([exerciseId])
+  @@map("workout_exercises")
+}
+
+/// Journal append-only des événements d'une séance (démarrage, pause, fin…) —
+/// utilisé pour l'analytics et le support, jamais modifié après écriture.
+model WorkoutHistory {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workoutSessionId String         @map("workout_session_id") @db.Uuid
+  workoutSession   WorkoutSession @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  event            String         @db.VarChar(50)
+  metadata         Json?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workoutSessionId])
+  @@index([createdAt])
+  @@map("workout_history")
+}
+
+model WorkoutNote {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workoutSessionId String         @map("workout_session_id") @db.Uuid
+  workoutSession   WorkoutSession @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  content          String
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workoutSessionId])
+  @@map("workout_notes")
+}
+
+/// Record personnel par exercice (1RM, meilleure série, etc.) — recalculé à
+/// chaque `WorkoutExercise` complété dépassant le record précédent.
+model PersonalRecord {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId   String   @map("exercise_id") @db.Uuid
+  exercise     Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  weightKg     Decimal? @map("weight_kg") @db.Decimal(6, 2)
+  reps         Int?
+  durationSeconds Int?  @map("duration_seconds")
+  achievedAt   DateTime @map("achieved_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, exerciseId])
+  @@index([userId])
+  @@index([exerciseId])
+  @@map("personal_records")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 6 — NUTRITION
+// Tables : foods, food_categories, recipes, recipe_ingredients, meal_plans,
+//          meals, meal_foods, water_tracking, shopping_lists, shopping_items,
+//          nutrition_goals
+// ═══════════════════════════════════════════════════════════════════════════
+
+model FoodCategory {
+  id   String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name String @unique @db.VarChar(50)
+  slug String @unique @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  foods Food[]
+
+  @@map("food_categories")
+}
+
+/// Aliment de référence (base nutritionnelle, pour 100 g).
+model Food {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId    String       @map("category_id") @db.Uuid
+  category      FoodCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name          String       @db.VarChar(150)
+  brand         String?      @db.VarChar(100)
+  caloriesPer100g Decimal    @map("calories_per_100g") @db.Decimal(6, 2)
+  proteinPer100g  Decimal    @map("protein_per_100g") @db.Decimal(6, 2)
+  carbsPer100g    Decimal    @map("carbs_per_100g") @db.Decimal(6, 2)
+  fatPer100g      Decimal    @map("fat_per_100g") @db.Decimal(6, 2)
+  fiberPer100g    Decimal?   @map("fiber_per_100g") @db.Decimal(6, 2)
+  barcode         String?    @unique @db.VarChar(50)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  recipeIngredients RecipeIngredient[]
+  mealFoods         MealFood[]
+  shoppingItems     ShoppingItem[]
+
+  @@index([categoryId])
+  @@index([barcode])
+  @@map("foods")
+}
+
+model Recipe {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String          @db.VarChar(150)
+  slug            String          @unique @db.VarChar(150)
+  description     String?
+  instructions    String?
+  prepTimeMinutes Int?            @map("prep_time_minutes")
+  servings        Int             @default(1)
+  imageUrl        String?         @map("image_url")
+  isPremium       Boolean         @default(false) @map("is_premium")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  ingredients RecipeIngredient[]
+  meals       Meal[]
+
+  @@map("recipes")
+}
+
+model RecipeIngredient {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipeId  String  @map("recipe_id") @db.Uuid
+  recipe    Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  foodId    String  @map("food_id") @db.Uuid
+  food      Food    @relation(fields: [foodId], references: [id], onDelete: Restrict)
+  quantityGrams Decimal @map("quantity_grams") @db.Decimal(7, 2)
+
+  @@index([recipeId])
+  @@index([foodId])
+  @@map("recipe_ingredients")
+}
+
+/// Plan nutritionnel sur une période (ex. "Semaine 1 — Sèche").
+model MealPlan {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String    @db.VarChar(150)
+  startDate DateTime  @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+  dailyCalorieTarget Int? @map("daily_calorie_target")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  meals Meal[]
+
+  @@index([userId])
+  @@map("meal_plans")
+}
+
+model Meal {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mealPlanId String    @map("meal_plan_id") @db.Uuid
+  mealPlan   MealPlan  @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  recipeId   String?   @map("recipe_id") @db.Uuid
+  recipe     Recipe?   @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  type       MealType
+  scheduledAt DateTime @map("scheduled_at") @db.Timestamptz(6)
+  isLogged   Boolean   @default(false) @map("is_logged")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  foods MealFood[]
+
+  @@index([mealPlanId])
+  @@index([scheduledAt])
+  @@map("meals")
+}
+
+model MealFood {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mealId        String  @map("meal_id") @db.Uuid
+  meal          Meal    @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  foodId        String  @map("food_id") @db.Uuid
+  food          Food    @relation(fields: [foodId], references: [id], onDelete: Restrict)
+  quantityGrams Decimal @map("quantity_grams") @db.Decimal(7, 2)
+
+  @@index([mealId])
+  @@index([foodId])
+  @@map("meal_foods")
+}
+
+/// Suivi hydratation quotidien (append-only par entrée).
+model WaterTracking {
+  id     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String   @map("user_id") @db.Uuid
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountMl Int    @map("amount_ml")
+  loggedAt DateTime @map("logged_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([loggedAt])
+  @@map("water_tracking")
+}
+
+model ShoppingList {
+  id     String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String  @map("user_id") @db.Uuid
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title  String  @default("Ma liste de courses") @db.VarChar(150)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  items ShoppingItem[]
+
+  @@index([userId])
+  @@map("shopping_lists")
+}
+
+model ShoppingItem {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shoppingListId String       @map("shopping_list_id") @db.Uuid
+  shoppingList   ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+  foodId         String?      @map("food_id") @db.Uuid
+  food           Food?        @relation(fields: [foodId], references: [id], onDelete: SetNull)
+  customLabel    String?      @map("custom_label") @db.VarChar(150)
+  quantity       String?      @db.VarChar(50)
+  isChecked      Boolean      @default(false) @map("is_checked")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([shoppingListId])
+  @@map("shopping_items")
+}
+
+/// Objectifs nutritionnels macro (calories/protéines/glucides/lipides cibles).
+model NutritionGoal {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyCalories Int     @map("daily_calories")
+  proteinGrams Int      @map("protein_grams")
+  carbsGrams   Int      @map("carbs_grams")
+  fatGrams     Int      @map("fat_grams")
+  effectiveFrom DateTime @map("effective_from") @db.Date
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("nutrition_goals")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 7 — TEDDY AI
+// Tables : ai_conversations, ai_messages, ai_workout_plans,
+//          ai_nutrition_plans, ai_progress_reports, ai_challenges, ai_memory
+//
+// Rappel d'architecture (Volume 1) : toute la LOGIQUE IA vit dans
+// `packages/teddy-sdk` ; ces tables ne stockent que des DONNÉES, jamais de
+// règles métier — le SDK est seul responsable de leur interprétation.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model AIConversation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String?  @db.VarChar(150)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  messages AIMessage[]
+
+  @@index([userId])
+  @@map("ai_conversations")
+}
+
+/// Message individuel — append-only, jamais modifié après écriture.
+model AIMessage {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String         @map("conversation_id") @db.Uuid
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           AIMessageRole
+  content        String
+  metadata       Json?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("ai_messages")
+}
+
+/// Plan d'entraînement généré par Teddy — distinct de `Program` (catalogue
+/// éditorial) pour isoler ce qui est personnalisé/généré de ce qui est
+/// pré-produit par l'équipe Fit4U.
+model AIWorkoutPlan {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId String?      @map("program_id") @db.Uuid
+  program   Program?     @relation(fields: [programId], references: [id], onDelete: SetNull)
+  status    AIPlanStatus @default(DRAFT)
+  rationale String?
+  planData  Json         @map("plan_data")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("ai_workout_plans")
+}
+
+model AINutritionPlan {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    AIPlanStatus @default(DRAFT)
+  rationale String?
+  planData  Json         @map("plan_data")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("ai_nutrition_plans")
+}
+
+/// Rapport de progression généré périodiquement par Teddy (synthèse hebdo/mensuelle).
+model AIProgressReport {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periodStart  DateTime @map("period_start") @db.Date
+  periodEnd    DateTime @map("period_end") @db.Date
+  summary      String
+  reportData   Json     @map("report_data")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([periodStart])
+  @@map("ai_progress_reports")
+}
+
+/// Défi personnalisé proposé par Teddy (distinct de `Challenge`, catalogue
+/// éditorial de la gamification).
+model AIChallenge {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String          @map("user_id") @db.Uuid
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String          @db.VarChar(150)
+  description String?
+  status      ChallengeStatus @default(UPCOMING)
+  targetData  Json            @map("target_data")
+  startDate   DateTime        @map("start_date") @db.Date
+  endDate     DateTime        @map("end_date") @db.Date
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("ai_challenges")
+}
+
+/// Mémoire long-terme de Teddy par utilisateur (préférences déduites,
+/// contexte persistant entre conversations) — clé/valeur versionnée.
+model AIMemory {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String   @db.VarChar(100)
+  value     Json
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, key])
+  @@index([userId])
+  @@map("ai_memory")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 8 — PROGRESSION
+// Tables : weight_history, measurements, progress_photos, body_composition,
+//          goals
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Historique de poids — append-only (chaque pesée est une nouvelle ligne).
+model WeightHistory {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weightKg Decimal  @map("weight_kg") @db.Decimal(5, 2)
+  recordedAt DateTime @map("recorded_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([recordedAt])
+  @@map("weight_history")
+}
+
+/// Mensurations corporelles (tour de taille, bras, cuisses…).
+model Measurement {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bodyPart   String   @map("body_part") @db.VarChar(50)
+  valueCm    Decimal  @map("value_cm") @db.Decimal(5, 2)
+  recordedAt DateTime @map("recorded_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([recordedAt])
+  @@map("measurements")
+}
+
+model ProgressPhoto {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url        String
+  angle      String?  @db.VarChar(20)
+  recordedAt DateTime @map("recorded_at") @db.Timestamptz(6)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([recordedAt])
+  @@map("progress_photos")
+}
+
+/// Composition corporelle détaillée (impédancemètre, DEXA…).
+model BodyComposition {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bodyFatPercent Decimal? @map("body_fat_percent") @db.Decimal(4, 1)
+  muscleMassKg   Decimal? @map("muscle_mass_kg") @db.Decimal(5, 2)
+  waterPercent   Decimal? @map("water_percent") @db.Decimal(4, 1)
+  boneMassKg     Decimal? @map("bone_mass_kg") @db.Decimal(4, 2)
+  recordedAt     DateTime @map("recorded_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([recordedAt])
+  @@map("body_composition")
+}
+
+/// Objectif personnel suivi dans le temps (ex. "Atteindre 75kg avant juin").
+model Goal {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         GoalType
+  title        String    @db.VarChar(150)
+  targetValue  Decimal?  @map("target_value") @db.Decimal(8, 2)
+  currentValue Decimal?  @map("current_value") @db.Decimal(8, 2)
+  targetDate   DateTime? @map("target_date") @db.Date
+  achievedAt   DateTime? @map("achieved_at") @db.Timestamptz(6)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("goals")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 9 — GAMIFICATION
+// Tables : levels, user_xp, badges, user_badges, challenges,
+//          user_challenges, rewards, reward_history
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Palier de niveau (référentiel — ex. Niveau 5 = 500 XP requis).
+model Level {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  levelNumber  Int    @unique @map("level_number")
+  name         String @db.VarChar(50)
+  xpRequired   Int    @map("xp_required")
+  iconUrl      String? @map("icon_url")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("levels")
+}
+
+/// État XP courant de l'utilisateur — 1-1, mis à jour à chaque gain d'XP.
+model UserXp {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String @unique @map("user_id") @db.Uuid
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalXp      Int    @default(0) @map("total_xp")
+  currentLevel Int    @default(1) @map("current_level")
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("user_xp")
+}
+
+model Badge {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String  @unique @db.VarChar(100)
+  slug        String  @unique @db.VarChar(100)
+  description String?
+  iconUrl     String? @map("icon_url")
+  criteria    Json
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  userBadges UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId    String   @map("badge_id") @db.Uuid
+  badge      Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  unlockedAt DateTime @default(now()) @map("unlocked_at") @db.Timestamptz(6)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@map("user_badges")
+}
+
+/// Défi catalogue (éditorial, proposé à tous — distinct de `AIChallenge`).
+model Challenge {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String          @db.VarChar(150)
+  slug        String          @unique @db.VarChar(150)
+  description String?
+  xpReward    Int             @default(0) @map("xp_reward")
+  status      ChallengeStatus @default(UPCOMING)
+  startDate   DateTime        @map("start_date") @db.Date
+  endDate     DateTime        @map("end_date") @db.Date
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  userChallenges UserChallenge[]
+
+  @@index([status])
+  @@map("challenges")
+}
+
+model UserChallenge {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challengeId String    @map("challenge_id") @db.Uuid
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  progress    Decimal   @default(0) @db.Decimal(5, 2)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, challengeId])
+  @@index([userId])
+  @@map("user_challenges")
+}
+
+model Reward {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String     @db.VarChar(100)
+  description String?
+  type        RewardType
+  value       Json
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  rewardHistory RewardHistory[]
+
+  @@map("rewards")
+}
+
+/// Journal append-only des récompenses attribuées (jamais modifié).
+model RewardHistory {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rewardId   String   @map("reward_id") @db.Uuid
+  reward     Reward   @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+  grantedFor String?  @map("granted_for") @db.VarChar(150)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("reward_history")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 10 — COMMUNAUTÉ
+// Tables : posts, comments, likes, friendships, groups, group_members,
+//          events, event_participants
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Post {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content    String
+  imageUrl   String?        @map("image_url")
+  visibility PostVisibility @default(FRIENDS)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  comments Comment[]
+  likes    Like[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("posts")
+}
+
+model Comment {
+  id      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId  String   @map("post_id") @db.Uuid
+  post    Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId  String   @map("user_id") @db.Uuid
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content String
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([postId])
+  @@index([userId])
+  @@map("comments")
+}
+
+/// "J'aime" sur un post — append-only, unicité (userId, postId).
+model Like {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId String @map("post_id") @db.Uuid
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+  @@map("likes")
+}
+
+/// Relation d'amitié bidirectionnelle représentée par une seule ligne
+/// orientée (requester → addressee) + un statut. Deux relations distinctes
+/// vers `User` : nommage explicite requis pour lever l'ambiguïté Prisma.
+model Friendship {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requesterId String            @map("requester_id") @db.Uuid
+  requester   User              @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String            @map("addressee_id") @db.Uuid
+  addressee   User              @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      FriendshipStatus  @default(PENDING)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([requesterId, addresseeId])
+  @@index([requesterId])
+  @@index([addresseeId])
+  @@map("friendships")
+}
+
+model Group {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String  @db.VarChar(100)
+  slug        String  @unique @db.VarChar(100)
+  description String?
+  coverImageUrl String? @map("cover_image_url")
+  isPrivate   Boolean @default(false) @map("is_private")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  members GroupMember[]
+  events  Event[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId  String    @map("group_id") @db.Uuid
+  group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String    @map("user_id") @db.Uuid
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     GroupRole @default(MEMBER)
+  joinedAt DateTime  @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("group_members")
+}
+
+model Event {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId      String?     @map("group_id") @db.Uuid
+  group        Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  organizerId  String      @map("organizer_id") @db.Uuid
+  organizer    User        @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  title        String      @db.VarChar(150)
+  description  String?
+  location     String?     @db.VarChar(255)
+  status       EventStatus @default(SCHEDULED)
+  startsAt     DateTime    @map("starts_at") @db.Timestamptz(6)
+  endsAt       DateTime?   @map("ends_at") @db.Timestamptz(6)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  participants EventParticipant[]
+
+  @@index([groupId])
+  @@index([organizerId])
+  @@index([startsAt])
+  @@map("events")
+}
+
+model EventParticipant {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId  String   @map("event_id") @db.Uuid
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId   String   @map("user_id") @db.Uuid
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@map("event_participants")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 11 — BOUTIQUE
+// Tables : products, product_categories, carts, cart_items, orders,
+//          order_items, coupons, payments, invoices
+//
+// Rappel (Volume 1) : la boutique est opérée via Shopify — ces tables forment
+// le CACHE local (lecture rapide, historique, facturation interne) synchronisé
+// depuis Shopify, jamais la source de vérité du catalogue/stock.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ProductCategory {
+  id   String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name String @unique @db.VarChar(50)
+  slug String @unique @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  products Product[]
+
+  @@map("product_categories")
+}
+
+/// Cache local d'un produit Shopify — `shopifyProductId` est la clé de
+/// réconciliation avec la source de vérité (Shopify Admin API).
+model Product {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shopifyProductId String          @unique @map("shopify_product_id") @db.VarChar(50)
+  categoryId       String          @map("category_id") @db.Uuid
+  category         ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name             String          @db.VarChar(150)
+  slug             String          @unique @db.VarChar(150)
+  description      String?
+  priceCents       Int             @map("price_cents")
+  currency         String          @default("EUR") @db.VarChar(3)
+  imageUrl         String?         @map("image_url")
+  stockQuantity    Int             @default(0) @map("stock_quantity")
+  isActive         Boolean         @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@map("products")
+}
+
+model Cart {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @unique @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cartId    String  @map("cart_id") @db.Uuid
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String  @map("product_id") @db.Uuid
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Int     @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([cartId, productId])
+  @@index([cartId])
+  @@map("cart_items")
+}
+
+model Order {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String      @map("user_id") @db.Uuid
+  user            User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  shopifyOrderId  String?     @unique @map("shopify_order_id") @db.VarChar(50)
+  status          OrderStatus @default(PENDING)
+  couponId        String?     @map("coupon_id") @db.Uuid
+  coupon          Coupon?     @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  subtotalCents   Int         @map("subtotal_cents")
+  discountCents   Int         @default(0) @map("discount_cents")
+  totalCents      Int         @map("total_cents")
+  currency        String      @default("EUR") @db.VarChar(3)
+  shippingAddress Json?       @map("shipping_address")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  items    OrderItem[]
+  payments Payment[]
+  invoice  Invoice?
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+/// Ligne de commande — snapshot du prix au moment de l'achat (`unitPriceCents`),
+/// jamais recalculé depuis `Product` pour préserver l'historique de facturation.
+model OrderItem {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId        String  @map("order_id") @db.Uuid
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String  @map("product_id") @db.Uuid
+  product        Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity       Int
+  unitPriceCents Int     @map("unit_price_cents")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Coupon {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String     @unique @db.VarChar(50)
+  type           CouponType
+  value          Decimal    @db.Decimal(8, 2)
+  maxRedemptions Int?       @map("max_redemptions")
+  redeemedCount  Int        @default(0) @map("redeemed_count")
+  expiresAt      DateTime?  @map("expires_at") @db.Timestamptz(6)
+  isActive       Boolean    @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  orders Order[]
+
+  @@index([code])
+  @@map("coupons")
+}
+
+/// Transaction de paiement (Stripe/PayPal/Google Pay/Apple Pay — Volume 1).
+model Payment {
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId               String        @map("order_id") @db.Uuid
+  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  userId                String        @map("user_id") @db.Uuid
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  provider              String        @db.VarChar(30)
+  providerTransactionId String?       @unique @map("provider_transaction_id") @db.VarChar(150)
+  status                PaymentStatus @default(PENDING)
+  amountCents           Int           @map("amount_cents")
+  currency              String        @default("EUR") @db.VarChar(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Invoice {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId       String        @unique @map("order_id") @db.Uuid
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  invoiceNumber String        @unique @map("invoice_number") @db.VarChar(50)
+  status        InvoiceStatus @default(DRAFT)
+  pdfUrl        String?       @map("pdf_url")
+  issuedAt      DateTime?     @map("issued_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("invoices")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 12 — ADMINISTRATION
+// Tables : vip_access, admin_logs, audit_logs, feature_flags,
+//          system_settings, support_tickets, support_messages
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Table dédiée VIP — une adresse email ici obtient automatiquement tous les
+/// droits Premium (résolution par email, y compris avant inscription : voir
+/// `userId` nullable). Deux relations distinctes vers `User` (bénéficiaire /
+/// créateur) : nommage explicite requis.
+model VipAccess {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String    @db.VarChar(255)
+  userId     String?   @unique @map("user_id") @db.Uuid
+  user       User?     @relation("VipAccessBeneficiary", fields: [userId], references: [id], onDelete: SetNull)
+  isLifetime Boolean   @default(false) @map("is_lifetime")
+  startDate  DateTime  @map("start_date") @db.Timestamptz(6)
+  endDate    DateTime? @map("end_date") @db.Timestamptz(6)
+  note       String?
+  createdBy  String    @map("created_by") @db.Uuid
+  creator    User      @relation("VipAccessCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  isActive   Boolean   @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([email])
+  @@index([isActive])
+  @@map("vip_access")
+}
+
+/// Journal append-only des actions effectuées depuis le BackOffice/ERP.
+model AdminLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  performedBy String   @map("performed_by") @db.Uuid
+  admin       User     @relation("AdminLogPerformedBy", fields: [performedBy], references: [id], onDelete: Restrict)
+  level       LogLevel @default(INFO)
+  action      String   @db.VarChar(100)
+  targetType  String?  @map("target_type") @db.VarChar(50)
+  targetId    String?  @map("target_id") @db.Uuid
+  metadata    Json?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([performedBy])
+  @@index([createdAt])
+  @@map("admin_logs")
+}
+
+/// Journal append-only des actions sensibles côté application (RGPD, sécurité).
+/// Table canonique du système — remplace la version simplifiée introduite
+/// dans le schéma bootstrap du Volume 1 (`backend`), désormais alignée ici.
+model AuditLog {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String? @map("user_id") @db.Uuid
+  user      User?   @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+  action    String  @db.VarChar(100)
+  metadata  Json?
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+/// Feature flags — activation progressive (rollout %) sans déploiement.
+/// Ciblage étendu au Volume 6 (BackOffice) : Tous/Premium/VIP/Pays/Version/Bêta.
+model FeatureFlag {
+  id                 String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key                String  @unique @db.VarChar(100)
+  description        String?
+  isEnabled          Boolean @default(false) @map("is_enabled")
+  rolloutPercentage  Int     @default(0) @map("rollout_percentage")
+  targetAudience     String  @default("ALL") @map("target_audience") @db.VarChar(20)
+  targetCountries    String[] @default([]) @map("target_countries")
+  targetMinVersion   String?  @map("target_min_version") @db.VarChar(20)
+  isBeta             Boolean  @default(false) @map("is_beta")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("feature_flags")
+}
+
+/// Configuration système clé/valeur (paramètres globaux non versionnés en code).
+model SystemSetting {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String  @unique @db.VarChar(100)
+  value       Json
+  description String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("system_settings")
+}
+
+/// Ticket support — deux relations distinctes vers `User` (auteur / agent
+/// assigné) : nommage explicite requis.
+model SupportTicket {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  user       User           @relation("SupportTicketOwner", fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo String?        @map("assigned_to") @db.Uuid
+  assignee   User?          @relation("SupportTicketAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  subject    String         @db.VarChar(150)
+  status     TicketStatus   @default(OPEN)
+  priority   TicketPriority @default(MEDIUM)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  messages SupportMessage[]
+
+  @@index([userId])
+  @@index([assignedTo])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+/// Message d'un ticket — append-only, auteur = utilisateur ou agent support.
+model SupportMessage {
+  id       String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketId String         @map("ticket_id") @db.Uuid
+  ticket   SupportTicket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId String         @map("sender_id") @db.Uuid
+  sender   User           @relation("SupportMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  content  String
+  isInternalNote Boolean  @default(false) @map("is_internal_note")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([ticketId])
+  @@index([senderId])
+  @@map("support_messages")
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 13 — COMMERCE DIGITAL & ENTITLEMENTS (Volume 7)
+// Tables : feature_definitions, subscription_plans, subscription_prices,
+//          subscriptions, subscription_payments, webhook_events
+//
+// Séparation stricte avec le Domaine 11 (Boutique) : "Digital Subscription"
+// (ce domaine) et "Physical Product Order" (Order/OrderItem/Payment,
+// Domaine 11) ne doivent jamais être confondus dans le modèle métier
+// (Volume 7 §40). Un abonnement Fit4U Premium n'est JAMAIS une `Order`.
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum AccessLevel {
+  FREE
+  PREMIUM
+  PRO
+  VIP
+  ADMIN
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELED
+  EXPIRED
+  INCOMPLETE
+}
+
+enum WebhookEventStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+/// Définition d'une fonctionnalité protégée par palier d'accès — source de
+/// configuration de l'EntitlementService (Volume 7 §4 : "Ne jamais coder en
+/// dur `if user.isPremium === true`"). Modifiable depuis le BackOffice sans
+/// déploiement (Volume 7 §5).
+model FeatureDefinition {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key          String      @unique @db.VarChar(100)
+  description  String?
+  minimumLevel AccessLevel @default(FREE) @map("minimum_level")
+  isActive     Boolean     @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("feature_definitions")
+}
+
+/// Catalogue interne des offres d'abonnement digital (Volume 7 §13),
+/// indépendant des prestataires — ex. FIT4U_PREMIUM_MONTHLY. Permet de
+/// changer de prestataire de paiement sans modifier la logique métier.
+model SubscriptionPlan {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String      @unique @db.VarChar(50)
+  name        String      @db.VarChar(100)
+  description String?
+  accessLevel AccessLevel @map("access_level")
+  isActive    Boolean     @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  prices        SubscriptionPrice[]
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+/// Prix par prestataire/devise/intervalle — un même plan peut avoir un prix
+/// Stripe mensuel, un prix Stripe annuel, un prix Apple, etc.
+model SubscriptionPrice {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId          String           @map("plan_id") @db.Uuid
+  plan            SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  provider        String           @db.VarChar(20)
+  providerPriceId String?          @map("provider_price_id") @db.VarChar(150)
+  billingInterval String           @map("billing_interval") @db.VarChar(10)
+  amountCents     Int              @map("amount_cents")
+  currency        String           @default("EUR") @db.VarChar(3)
+  isActive        Boolean          @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  subscriptions Subscription[]
+
+  @@unique([provider, providerPriceId])
+  @@index([planId])
+  @@map("subscription_prices")
+}
+
+/// Abonnement digital d'un utilisateur — jamais une `Order` (Domaine 11).
+/// `cancelAtPeriodEnd` (Volume 7 §18) : une annulation ne retire jamais les
+/// droits immédiatement, seulement à `currentPeriodEnd`.
+model Subscription {
+  id                     String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                 String             @map("user_id") @db.Uuid
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  planId                 String             @map("plan_id") @db.Uuid
+  plan                   SubscriptionPlan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+  /// Prix exact souscrit (montant/devise/intervalle) — sans cette référence,
+  /// impossible de calculer un MRR exact (un `SubscriptionPlan` seul ne
+  /// suffit pas : un même plan peut avoir un prix mensuel ET annuel).
+  /// Nullable : une souscription `INCOMPLETE` peut exister avant confirmation du prix.
+  priceId                String?            @map("price_id") @db.Uuid
+  price                  SubscriptionPrice? @relation(fields: [priceId], references: [id], onDelete: SetNull)
+  provider               String             @db.VarChar(20)
+  providerSubscriptionId String?            @unique @map("provider_subscription_id") @db.VarChar(150)
+  status                 SubscriptionStatus @default(INCOMPLETE)
+  currentPeriodStart     DateTime?          @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd       DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  cancelAtPeriodEnd      Boolean            @default(false) @map("cancel_at_period_end")
+  trialEndsAt            DateTime?          @map("trial_ends_at") @db.Timestamptz(6)
+  canceledAt             DateTime?          @map("canceled_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  payments SubscriptionPayment[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+/// Historique financier d'un abonnement digital — distinct de `Payment`
+/// (lié à `Order`, Domaine 11) pour respecter la séparation Volume 7 §40.
+/// Jamais supprimé, y compris après remboursement (Volume 7 §19, §41).
+model SubscriptionPayment {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscriptionId      String        @map("subscription_id") @db.Uuid
+  subscription        Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  provider            String        @db.VarChar(20)
+  providerPaymentId   String?       @unique @map("provider_payment_id") @db.VarChar(150)
+  status              PaymentStatus @default(PENDING)
+  amountCents         Int           @map("amount_cents")
+  currency            String        @default("EUR") @db.VarChar(3)
+  refundedAmountCents Int?          @map("refunded_amount_cents")
+  refundReason        String?       @map("refund_reason")
+  refundedAt          DateTime?     @map("refunded_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([subscriptionId])
+  @@map("subscription_payments")
+}
+
+/// Idempotence des webhooks — Stripe/PayPal/Shopify/Apple/Google (Volume 7
+/// §16). `@@unique([provider, externalEventId])` est LA garantie anti-doublon :
+/// un événement rejoué par le prestataire est ignoré silencieusement.
+model WebhookEvent {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider        String             @db.VarChar(20)
+  externalEventId String             @map("external_event_id") @db.VarChar(150)
+  eventType       String             @map("event_type") @db.VarChar(100)
+  payload         Json
+  status          WebhookEventStatus @default(PENDING)
+  error           String?
+  processedAt     DateTime?          @map("processed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([provider, externalEventId])
+  @@index([status])
+  @@map("webhook_events")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 14 — MODÉRATION COMMUNAUTÉ (revue continue post-Volume 8)
+// Tables : reports, community_bans
+// Gap identifié dans apps/admin/docs/Modules.md : le Domaine 10 (Communauté)
+// couvrait Publications/Commentaires/Likes/Groupes/Événements mais aucune
+// table de modération (signalements, bannissements) n'existait.
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum ReportTargetType {
+  POST
+  COMMENT
+  USER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+  ACTIONED
+}
+
+/// Signalement d'un contenu ou d'un utilisateur — jamais supprimé après
+/// traitement (Volume 8 §41 appliqué par analogie : historique de
+/// modération conservé pour audit, même une fois "traité").
+model Report {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterId String           @map("reporter_id") @db.Uuid
+  reporter   User             @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType ReportTargetType @map("target_type")
+  /// Référence polymorphe (Post.id, Comment.id ou User.id selon `targetType`)
+  /// — pas de FK Prisma stricte possible sur une cible polymorphe ; la
+  /// cohérence est garantie applicativement dans `AdminCommunityService`.
+  targetId   String           @map("target_id") @db.Uuid
+  reason     String           @db.VarChar(500)
+  status     ReportStatus     @default(PENDING)
+  reviewedBy String?          @map("reviewed_by") @db.Uuid
+  reviewer   User?            @relation("ReportReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  reviewedAt DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([targetType, targetId])
+  @@index([status])
+  @@map("reports")
+}
+
+/// Bannissement communauté — restreint la publication (posts/commentaires)
+/// SANS suspendre le compte entier (`User.status`, Volume 3), qui reste une
+/// action distincte et plus large. `expiresAt` null = permanent.
+model CommunityBan {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation("CommunityBanUser", fields: [userId], references: [id], onDelete: Cascade)
+  reason    String    @db.VarChar(500)
+  bannedBy  String    @map("banned_by") @db.Uuid
+  banner    User      @relation("CommunityBanBanner", fields: [bannedBy], references: [id], onDelete: Restrict)
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
+  liftedAt  DateTime? @map("lifted_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("community_bans")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAINE 15 — TEDDY CONTROL CENTER (revue continue, décision d'architecture)
+// Table : prompt_overrides
+//
+// Décision tranchée (comparaison avec Intercom Fin/Zendesk AI/produits
+// similaires) : hybride, jamais "tout en base". Seuls les DOMAIN PROMPTS
+// (ton, style métier — coach/nutrition/recovery/motivation/analytics/
+// planner) sont éditables ici. Les prompts d'IDENTITÉ et de SÉCURITÉ
+// (`identityPrompt.ts`, `globalSafetyPrompt.ts`, `safety/*`) restent des
+// constantes TypeScript versionnées par Git, JAMAIS éditables depuis le
+// BackOffice — même un compte admin compromis ne peut donc jamais désactiver
+// un garde-fou de sécurité en modifiant une ligne de base de données.
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum PromptOverrideKey {
+  COACH
+  NUTRITION
+  RECOVERY
+  MOTIVATION
+  ANALYTICS
+  PLANNER
+}
+
+/// Une seule ligne ACTIVE par `key` à la fois (appliqué au niveau service,
+/// pas une contrainte DB stricte — un historique de versions INACTIVES
+/// reste consultable pour rollback, Volume 8 §35 appliqué aux prompts).
+model PromptOverride {
+  id        String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       PromptOverrideKey
+  content   String
+  version   Int               @default(1)
+  isActive  Boolean           @default(false)
+  createdBy String            @map("created_by") @db.Uuid
+  creator   User              @relation("PromptOverrideCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([key, isActive])
+  @@map("prompt_overrides")
+}
