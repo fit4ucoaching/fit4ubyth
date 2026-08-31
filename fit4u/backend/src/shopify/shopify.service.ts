@@ -33,8 +33,8 @@ export const shopifyService = {
       if (products.length === 0) break;
 
       for (const product of products) {
-        await this.upsertProductFromShopify(product);
-        syncedCount += 1;
+        const upserted = await this.upsertProductFromShopify(product);
+        if (upserted) syncedCount += 1;
       }
 
       sinceId = products.at(-1)?.id;
@@ -44,9 +44,9 @@ export const shopifyService = {
     return { syncedCount };
   },
 
-  async upsertProductFromShopify(product: ShopifyProduct): Promise<void> {
+  async upsertProductFromShopify(product: ShopifyProduct): Promise<boolean> {
     const primaryVariant = product.variants[0];
-    if (!primaryVariant) return; // produit sans variante — rien à afficher côté app
+    if (!primaryVariant) return false; // produit sans variante — rien à afficher côté app
 
     const category = await repository.ensureCategory(product.vendor || "Divers");
 
@@ -61,6 +61,8 @@ export const shopifyService = {
       imageUrl: product.images[0]?.src,
       stockQuantity: primaryVariant.inventory_quantity,
     });
+
+    return true;
   },
 
   /**
@@ -86,12 +88,26 @@ export const shopifyService = {
         case "products/create":
           await this.upsertProductFromShopify(payload as ShopifyProduct);
           break;
-        case "orders/updated":
+        // Le topic Shopify indique sans ambiguïté le statut cible — ne jamais
+        // le redéduire depuis `financial_status`/`fulfillment_status` (une
+        // commande peut être "paid" ET "fulfilled" simultanément, et
+        // `financial_status` primerait alors à tort sur `fulfillment_status`).
         case "orders/paid":
         case "orders/cancelled":
         case "orders/fulfilled": {
           const order = payload as ShopifyOrder;
-          const mappedStatus = ORDER_STATUS_MAP[order.financial_status] ?? ORDER_STATUS_MAP[order.fulfillment_status ?? ""];
+          const mappedStatus = ORDER_STATUS_MAP[topic.slice("orders/".length)];
+          if (mappedStatus) {
+            await repository.updateOrderStatusByShopifyId(String(order.id), mappedStatus);
+          }
+          break;
+        }
+        // Topic générique (tout changement sur la commande) : seul cas où le
+        // statut doit être déduit des champs — priorité à `fulfillment_status`
+        // (état le plus avancé/actionnable) avant `financial_status`.
+        case "orders/updated": {
+          const order = payload as ShopifyOrder;
+          const mappedStatus = ORDER_STATUS_MAP[order.fulfillment_status ?? ""] ?? ORDER_STATUS_MAP[order.financial_status];
           if (mappedStatus) {
             await repository.updateOrderStatusByShopifyId(String(order.id), mappedStatus);
           }

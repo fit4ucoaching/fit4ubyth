@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import OpenAI from "openai";
 
 import type { TeddyMessage, TeddyReply, TeddySuggestedAction } from "../types/teddy.types";
@@ -50,7 +52,7 @@ export async function generateTeddyReply(
 
 function buildTeddyMessage(content: string): TeddyMessage {
   return {
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     role: "teddy",
     content,
     createdAt: new Date().toISOString(),

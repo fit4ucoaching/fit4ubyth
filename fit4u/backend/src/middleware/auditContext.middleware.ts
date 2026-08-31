@@ -1,8 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
 
-declare module "express-serve-static-core" {
-  interface Request {
-    auditContext: { ipAddress?: string; userAgent?: string };
+declare global {
+  namespace Express {
+    interface Request {
+      auditContext: { ipAddress?: string; userAgent?: string };
+    }
   }
 }
 

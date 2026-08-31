@@ -17,13 +17,13 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 
 export const nutritionRouter = Router();
 
-/** @openapi /foods: get: { summary: Liste paginée des aliments (recherche, filtre catégorie), tags: [Nutrition], responses: { 200: { description: OK } } } */
+/** @openapi { "/foods": { get: { summary: Liste paginée des aliments (recherche, filtre catégorie), tags: [Nutrition], responses: { 200: { description: OK } } } } } */
 nutritionRouter.get("/foods", asyncHandler(nutritionController.listFoods));
 
-/** @openapi /recipes: get: { summary: Liste paginée des recettes, tags: [Nutrition], responses: { 200: { description: OK } } } */
+/** @openapi { "/recipes": { get: { summary: Liste paginée des recettes, tags: [Nutrition], responses: { 200: { description: OK } } } } } */
 nutritionRouter.get("/recipes", asyncHandler(nutritionController.listRecipes));
 
-/** @openapi /meal-plans/generate: post: { summary: Génère un plan de repas via Teddy AI, tags: [Nutrition], responses: { 201: { description: OK } } } */
+/** @openapi { "/meal-plans/generate": { post: { summary: Génère un plan de repas via Teddy AI, tags: [Nutrition], responses: { 201: { description: OK } } } } } */
 nutritionRouter.post(
   "/meal-plans/generate",
   requireAuth,
@@ -31,7 +31,7 @@ nutritionRouter.post(
   asyncHandler(nutritionController.generateMealPlan),
 );
 
-/** @openapi /nutrition/water: post: { summary: Enregistre une prise d'eau, tags: [Nutrition], responses: { 201: { description: OK } } } */
+/** @openapi { "/nutrition/water": { post: { summary: Enregistre une prise d'eau, tags: [Nutrition], responses: { 201: { description: OK } } } } } */
 nutritionRouter.post(
   "/nutrition/water",
   requireAuth,
@@ -39,7 +39,7 @@ nutritionRouter.post(
   asyncHandler(nutritionController.logWater),
 );
 
-/** @openapi /nutrition/barcode: post: { summary: Recherche un aliment par code-barres scanné, tags: [Nutrition], responses: { 200: { description: OK }, 404: { description: Introuvable } } } */
+/** @openapi { "/nutrition/barcode": { post: { summary: Recherche un aliment par code-barres scanné, tags: [Nutrition], responses: { 200: { description: OK }, 404: { description: Introuvable } } } } } */
 nutritionRouter.post(
   "/nutrition/barcode",
   requireAuth,
@@ -47,7 +47,7 @@ nutritionRouter.post(
   asyncHandler(nutritionController.barcode),
 );
 
-/** @openapi /nutrition/analyze-photo: post: { summary: Analyse une photo de repas (Teddy Vision), tags: [Nutrition], responses: { 200: { description: OK } } } */
+/** @openapi { "/nutrition/analyze-photo": { post: { summary: Analyse une photo de repas (Teddy Vision), tags: [Nutrition], responses: { 200: { description: OK } } } } } */
 nutritionRouter.post(
   "/nutrition/analyze-photo",
   requireAuth,

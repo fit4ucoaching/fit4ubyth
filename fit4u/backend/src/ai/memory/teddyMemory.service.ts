@@ -59,14 +59,13 @@ export class TeddyMemoryService {
    * produit (ex. à la confirmation d'un remplacement d'exercice, Volume 4).
    */
   async buildFullMemory(userId: string, conversationId?: string): Promise<TeddyFullMemory> {
-    const [profile, goals, latestWeight, preferences, recentWorkouts, nutritionGoal, activeChallenges, injuriesMemory, personalRecords, favorites, messages] =
+    const [profile, goals, latestWeight, preferences, recentWorkouts, activeChallenges, injuriesMemory, personalRecords, favorites, messages] =
       await Promise.all([
         this.aiRepository.getProfileForCalorieCalculation(userId),
         this.aiRepository.getUserGoals(userId),
         this.aiRepository.getLatestWeight(userId),
         this.aiRepository.getPreferences(userId),
         this.aiRepository.getRecentWorkoutSessions(userId),
-        this.aiRepository.getNutritionGoal(userId),
         this.aiRepository.getActiveUserChallenges(userId),
         this.aiRepository.getMemory(userId, "declared_injuries"),
         this.aiRepository.getRecentPersonalRecords(userId),

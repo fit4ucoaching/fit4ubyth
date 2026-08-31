@@ -16,5 +16,5 @@ const controller = new EntitlementsController();
  */
 export const entitlementsRouter = Router();
 
-/** @openapi /entitlements/me: get: { summary: Résumé des droits de l'utilisateur connecté, tags: [Entitlements], responses: { 200: { description: OK } } } */
+/** @openapi { "/entitlements/me": { get: { summary: Résumé des droits de l'utilisateur connecté, tags: [Entitlements], responses: { 200: { description: OK } } } } } */
 entitlementsRouter.get("/me", requireAuth, asyncHandler(controller.me));

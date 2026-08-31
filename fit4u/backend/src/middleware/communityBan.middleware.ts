@@ -18,18 +18,22 @@ const communityBanRepository = new CommunityBanRepository();
  * (`User.status`, Volume 3), plus large que ce bannissement ciblé.
  */
 export async function requireNotBanned(req: Request, _res: Response, next: NextFunction): Promise<void> {
-  if (!req.user) {
-    throw new AuthenticationError();
-  }
+  try {
+    if (!req.user) {
+      throw new AuthenticationError();
+    }
 
-  const activeBan = await communityBanRepository.findActiveBan(req.user.id);
-  if (activeBan) {
-    throw new AuthorizationError(
-      activeBan.expiresAt
-        ? `Vous êtes temporairement banni de la communauté jusqu'au ${activeBan.expiresAt.toLocaleDateString("fr-FR")}.`
-        : "Vous êtes banni de la communauté.",
-    );
-  }
+    const activeBan = await communityBanRepository.findActiveBan(req.user.id);
+    if (activeBan) {
+      throw new AuthorizationError(
+        activeBan.expiresAt
+          ? `Vous êtes temporairement banni de la communauté jusqu'au ${activeBan.expiresAt.toLocaleDateString("fr-FR")}.`
+          : "Vous êtes banni de la communauté.",
+      );
+    }
 
-  next();
+    next();
+  } catch (err) {
+    next(err);
+  }
 }

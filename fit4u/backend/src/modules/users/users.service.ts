@@ -14,7 +14,12 @@ export class UsersService {
     if (!user) {
       throw new NotFoundError("Utilisateur introuvable.");
     }
-    return user;
+    // `heightCm` est un `Decimal` Prisma — sérialisé en JSON comme une chaîne
+    // par défaut (`Decimal.toJSON()`) si on ne le convertit pas explicitement.
+    return {
+      ...user,
+      profile: user.profile ? { ...user.profile, heightCm: user.profile.heightCm?.toNumber() ?? null } : user.profile,
+    };
   }
 
   async updateMe(userId: string, input: UpdateProfileInput) {

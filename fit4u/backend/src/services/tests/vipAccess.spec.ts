@@ -20,7 +20,8 @@ describe("VipAccessService", () => {
 
     await vipAccessService.grant({ email: "lifetime@fit4u.app", isLifetime: true, startDate, createdBy: "admin1" });
 
-    expect(createSpy).toHaveBeenCalledWith(expect.objectContaining({ isLifetime: true, endDate: undefined }));
+    expect(createSpy).toHaveBeenCalledWith(expect.objectContaining({ isLifetime: true }));
+    expect(createSpy.mock.calls[0]?.[0].endDate).toBeUndefined();
   });
 
   it("VIP temporaire : endDate fournie et transmise telle quelle", async () => {

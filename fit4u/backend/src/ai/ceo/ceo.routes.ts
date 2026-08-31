@@ -12,5 +12,5 @@ const controller = new CeoController(service);
 /** Montées sous `/admin/teddy-ceo` — permission `teddy.read` (lecture suffit : le CEO ne fait qu'analyser, jamais muter). */
 export const ceoRouter = Router();
 
-/** @openapi /admin/teddy-ceo/chat: post: { summary: Conversation avec le Teddy CEO (analyse plateforme), tags: [Admin - Teddy CEO], responses: { 200: { description: OK } } } */
+/** @openapi { "/admin/teddy-ceo/chat": { post: { summary: Conversation avec le Teddy CEO (analyse plateforme), tags: [Admin - Teddy CEO], responses: { 200: { description: OK } } } } } */
 ceoRouter.post("/chat", requirePermission("teddy.read"), validateBody(ceoChatSchema), asyncHandler(controller.chat));

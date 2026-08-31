@@ -24,8 +24,9 @@ describe("requireNotBanned — application réelle du bannissement", () => {
     vi.mocked(CommunityBanRepository.prototype.findActiveBan).mockResolvedValue({ id: "ban1", expiresAt: null } as never);
     const next = vi.fn();
 
-    await expect(requireNotBanned(buildReq(), {} as never, next)).rejects.toThrow(AuthorizationError);
-    expect(next).not.toHaveBeenCalled();
+    await requireNotBanned(buildReq(), {} as never, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(AuthorizationError));
   });
 
   it("laisse passer un utilisateur sans bannissement actif", async () => {
@@ -40,14 +41,20 @@ describe("requireNotBanned — application réelle du bannissement", () => {
   it("le message d'erreur distingue un bannissement temporaire d'un permanent", async () => {
     const expiresAt = new Date("2026-12-31");
     vi.mocked(CommunityBanRepository.prototype.findActiveBan).mockResolvedValue({ id: "ban1", expiresAt } as never);
+    const next = vi.fn();
 
-    await expect(requireNotBanned(buildReq(), {} as never, vi.fn())).rejects.toThrow(/temporairement/);
+    await requireNotBanned(buildReq(), {} as never, next);
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/temporairement/) }));
   });
 
   it("rejette toute requête non authentifiée avant même de vérifier le bannissement", async () => {
     const findActiveBanSpy = vi.mocked(CommunityBanRepository.prototype.findActiveBan);
+    const next = vi.fn();
 
-    await expect(requireNotBanned({ user: undefined } as never, {} as never, vi.fn())).rejects.toThrow();
+    await requireNotBanned({ user: undefined } as never, {} as never, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
     expect(findActiveBanSpy).not.toHaveBeenCalled();
   });
 });

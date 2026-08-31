@@ -33,7 +33,17 @@ export async function executeTool(
       // sur `@fit4u/teddy-sdk` — voir `ai.service.ts` pour éviter une double implémentation.
       const { aiService } = await import("../ai.service");
       return aiService.generateWorkoutProgram(userId, {
-        goalType: String(args.goalType ?? "MAINTENANCE"),
+        goalType:
+          (args.goalType as
+            | "WEIGHT_LOSS"
+            | "MUSCLE_GAIN"
+            | "MAINTENANCE"
+            | "PERFORMANCE"
+            | "ENDURANCE"
+            | "HYROX"
+            | "RUNNING"
+            | "FOOTBALL"
+            | "MOBILITY") ?? "MAINTENANCE",
         difficultyLevel: (args.difficultyLevel as "BEGINNER" | "INTERMEDIATE" | "ADVANCED") ?? "BEGINNER",
         durationWeeks: Number(args.durationWeeks ?? 4),
         sessionsPerWeek: Number(args.sessionsPerWeek ?? 3),

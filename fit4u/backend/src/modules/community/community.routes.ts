@@ -23,10 +23,10 @@ const communityController = new CommunityController(communityService);
 
 export const communityRouter = Router();
 
-/** @openapi /posts: get: { summary: Flux public paginé, tags: [Community], responses: { 200: { description: OK } } } */
+/** @openapi { "/posts": { get: { summary: Flux public paginé, tags: [Community], responses: { 200: { description: OK } } } } } */
 communityRouter.get("/posts", validateQuery(listQuerySchema), asyncHandler(communityController.listPosts));
 
-/** @openapi /posts: post: { summary: Publie un post, tags: [Community], responses: { 201: { description: OK } } } */
+/** @openapi { "/posts": { post: { summary: Publie un post, tags: [Community], responses: { 201: { description: OK } } } } } */
 communityRouter.post(
   "/posts",
   requireAuth,
@@ -35,7 +35,7 @@ communityRouter.post(
   asyncHandler(communityController.createPost),
 );
 
-/** @openapi /posts/{id}: put: { summary: Modifie son propre post, tags: [Community], responses: { 200: { description: OK } } } */
+/** @openapi { "/posts/{id}": { put: { summary: Modifie son propre post, tags: [Community], responses: { 200: { description: OK } } } } } */
 communityRouter.put(
   "/posts/:id",
   requireAuth,
@@ -44,7 +44,7 @@ communityRouter.put(
   asyncHandler(communityController.updatePost),
 );
 
-/** @openapi /posts/{id}: delete: { summary: Supprime son propre post, tags: [Community], responses: { 204: { description: OK } } } */
+/** @openapi { "/posts/{id}": { delete: { summary: Supprime son propre post, tags: [Community], responses: { 204: { description: OK } } } } } */
 communityRouter.delete(
   "/posts/:id",
   requireAuth,
@@ -52,7 +52,7 @@ communityRouter.delete(
   asyncHandler(communityController.deletePost),
 );
 
-/** @openapi /comments: post: { summary: Commente un post, tags: [Community], responses: { 201: { description: OK } } } */
+/** @openapi { "/comments": { post: { summary: Commente un post, tags: [Community], responses: { 201: { description: OK } } } } } */
 communityRouter.post(
   "/comments",
   requireAuth,
@@ -61,13 +61,13 @@ communityRouter.post(
   asyncHandler(communityController.createComment),
 );
 
-/** @openapi /likes: post: { summary: Like/unlike un post (toggle), tags: [Community], responses: { 200: { description: OK } } } */
+/** @openapi { "/likes": { post: { summary: Like/unlike un post (toggle), tags: [Community], responses: { 200: { description: OK } } } } } */
 communityRouter.post("/likes", requireAuth, validateBody(likeSchema), asyncHandler(communityController.toggleLike));
 
-/** @openapi /groups: get: { summary: Liste paginée des groupes publics, tags: [Community], responses: { 200: { description: OK } } } */
+/** @openapi { "/groups": { get: { summary: Liste paginée des groupes publics, tags: [Community], responses: { 200: { description: OK } } } } } */
 communityRouter.get("/groups", validateQuery(listQuerySchema), asyncHandler(communityController.listGroups));
 
-/** @openapi /groups: post: { summary: Crée un groupe (créateur = OWNER), tags: [Community], responses: { 201: { description: OK } } } */
+/** @openapi { "/groups": { post: { summary: Crée un groupe (créateur = OWNER), tags: [Community], responses: { 201: { description: OK } } } } } */
 communityRouter.post(
   "/groups",
   requireAuth,

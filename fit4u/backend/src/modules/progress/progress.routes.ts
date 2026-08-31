@@ -18,21 +18,21 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 export const progressRouter = Router();
 progressRouter.use(requireAuth);
 
-/** @openapi /progress/weight: post: { summary: Enregistre une pesée, tags: [Progress], responses: { 201: { description: OK } } } */
+/** @openapi { "/progress/weight": { post: { summary: Enregistre une pesée, tags: [Progress], responses: { 201: { description: OK } } } } } */
 progressRouter.post("/weight", validateBody(logWeightSchema), asyncHandler(progressController.logWeight));
 
-/** @openapi /progress/measurements: post: { summary: Enregistre une mensuration, tags: [Progress], responses: { 201: { description: OK } } } */
+/** @openapi { "/progress/measurements": { post: { summary: Enregistre une mensuration, tags: [Progress], responses: { 201: { description: OK } } } } } */
 progressRouter.post(
   "/measurements",
   validateBody(logMeasurementSchema),
   asyncHandler(progressController.logMeasurement),
 );
 
-/** @openapi /progress/photo: post: { summary: Ajoute une photo de progression, tags: [Progress], responses: { 201: { description: OK } } } */
+/** @openapi { "/progress/photo": { post: { summary: Ajoute une photo de progression, tags: [Progress], responses: { 201: { description: OK } } } } } */
 progressRouter.post("/photo", upload.single("photo"), asyncHandler(progressController.logPhoto));
 
-/** @openapi /progress/history: get: { summary: Historique paginé (poids/mensurations/photos), tags: [Progress], responses: { 200: { description: OK } } } */
+/** @openapi { "/progress/history": { get: { summary: Historique paginé (poids/mensurations/photos), tags: [Progress], responses: { 200: { description: OK } } } } } */
 progressRouter.get("/history", asyncHandler(progressController.history));
 
-/** @openapi /progress/analytics: get: { summary: Analyse de tendance (poids, objectifs atteints), tags: [Progress], responses: { 200: { description: OK } } } */
+/** @openapi { "/progress/analytics": { get: { summary: Analyse de tendance (poids, objectifs atteints), tags: [Progress], responses: { 200: { description: OK } } } } } */
 progressRouter.get("/analytics", asyncHandler(progressController.analytics));

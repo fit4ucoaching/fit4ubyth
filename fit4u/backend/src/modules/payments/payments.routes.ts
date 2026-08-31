@@ -14,7 +14,7 @@ const paymentsController = new PaymentsController(paymentsService);
 
 export const paymentsRouter = Router();
 
-/** @openapi /payments/create-intent: post: { summary: Crée l'intention de paiement (Stripe/PayPal), tags: [Payments], responses: { 201: { description: OK } } } */
+/** @openapi { "/payments/create-intent": { post: { summary: Crée l'intention de paiement (Stripe/PayPal), tags: [Payments], responses: { 201: { description: OK } } } } } */
 paymentsRouter.post(
   "/create-intent",
   requireAuth,
@@ -33,8 +33,8 @@ paymentsRouter.post(
  */
 paymentsRouter.post("/webhook", express.raw({ type: "application/json" }), asyncHandler(paymentsController.webhook));
 
-/** @openapi /payments/history: get: { summary: Historique des paiements, tags: [Payments], responses: { 200: { description: OK } } } */
+/** @openapi { "/payments/history": { get: { summary: Historique des paiements, tags: [Payments], responses: { 200: { description: OK } } } } } */
 paymentsRouter.get("/history", requireAuth, asyncHandler(paymentsController.history));
 
-/** @openapi /payments/refund: post: { summary: Demande un remboursement, tags: [Payments], responses: { 200: { description: OK } } } */
+/** @openapi { "/payments/refund": { post: { summary: Demande un remboursement, tags: [Payments], responses: { 200: { description: OK } } } } } */
 paymentsRouter.post("/refund", requireAuth, validateBody(refundSchema), asyncHandler(paymentsController.refund));

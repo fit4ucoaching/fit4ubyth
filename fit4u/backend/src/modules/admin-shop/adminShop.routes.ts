@@ -20,10 +20,10 @@ const controller = new AdminShopController(service);
  */
 export const adminShopRouter = Router();
 
-/** @openapi /admin/shop/products: get: { summary: Liste paginée du catalogue (source Shopify), tags: [Admin - Shop], responses: { 200: { description: OK } } } */
+/** @openapi { "/admin/shop/products": { get: { summary: Liste paginée du catalogue (source Shopify), tags: [Admin - Shop], responses: { 200: { description: OK } } } } } */
 adminShopRouter.get("/products", requirePermission("shop.read"), validateQuery(listProductsQuerySchema), asyncHandler(controller.listProducts));
 
-/** @openapi /admin/shop/products/{id}/active: put: { summary: Bascule la visibilité locale d'un produit (jamais synchronisé vers Shopify), tags: [Admin - Shop], responses: { 200: { description: OK } } } */
+/** @openapi { "/admin/shop/products/{id}/active": { put: { summary: Bascule la visibilité locale d'un produit (jamais synchronisé vers Shopify), tags: [Admin - Shop], responses: { 200: { description: OK } } } } } */
 adminShopRouter.put(
   "/products/:id/active",
   requirePermission("shop.write"),
@@ -32,8 +32,8 @@ adminShopRouter.put(
   asyncHandler(controller.toggleProductActive),
 );
 
-/** @openapi /admin/shop/orders: get: { summary: Liste paginée de toutes les commandes, tags: [Admin - Shop], responses: { 200: { description: OK } } } */
+/** @openapi { "/admin/shop/orders": { get: { summary: Liste paginée de toutes les commandes, tags: [Admin - Shop], responses: { 200: { description: OK } } } } } */
 adminShopRouter.get("/orders", requirePermission("shop.read"), validateQuery(listOrdersQuerySchema), asyncHandler(controller.listOrders));
 
-/** @openapi /admin/shop/orders/{id}: get: { summary: Détail d'une commande, tags: [Admin - Shop], responses: { 200: { description: OK } } } */
+/** @openapi { "/admin/shop/orders/{id}": { get: { summary: Détail d'une commande, tags: [Admin - Shop], responses: { 200: { description: OK } } } } } */
 adminShopRouter.get("/orders/:id", requirePermission("shop.read"), validateParams(idParamSchema), asyncHandler(controller.getOrderDetail));

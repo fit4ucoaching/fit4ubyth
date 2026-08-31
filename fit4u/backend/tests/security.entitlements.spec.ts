@@ -34,15 +34,18 @@ describe("requireFeature — résistance à la falsification côté client", () 
     const req = buildReq({ isPremium: true }); // falsification du champ JWT côté attaquant hypothétique
     const next = vi.fn();
 
-    await expect(requireFeature("teddy.vision")(req, {} as never, next)).rejects.toThrow(AuthorizationError);
-    expect(next).not.toHaveBeenCalled();
+    await requireFeature("teddy.vision")(req, {} as never, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(AuthorizationError));
   });
 
   it("un rôle falsifié inventé (ex. 'PREMIUM_USER') n'est jamais reconnu comme un niveau d'accès valide", async () => {
     const req = buildReq({ roles: ["USER", "PREMIUM_USER"] });
     const next = vi.fn();
 
-    await expect(requireFeature("teddy.vision")(req, {} as never, next)).rejects.toThrow(AuthorizationError);
+    await requireFeature("teddy.vision")(req, {} as never, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(AuthorizationError));
   });
 
   it("un utilisateur réellement ADMIN (rôle serveur légitime) passe la vérification", async () => {
@@ -68,7 +71,9 @@ describe("requireFeature — résistance à la falsification côté client", () 
 
   it("aucune requête non authentifiée ne peut jamais atteindre l'EntitlementService", async () => {
     const next = vi.fn();
-    await expect(requireFeature("teddy.vision")({ user: undefined } as never, {} as never, next)).rejects.toThrow();
-    expect(next).not.toHaveBeenCalled();
+
+    await requireFeature("teddy.vision")({ user: undefined } as never, {} as never, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
   });
 });

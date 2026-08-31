@@ -19,7 +19,7 @@ export const finishWorkoutSchema = z.object({
         exerciseId: z.string().uuid(),
         setsCompleted: z.coerce.number().int().min(0),
         repsCompleted: z.coerce.number().int().min(0).optional(),
-        weightUsedKg: z.coerce.number().positive().optional(),
+        weightUsedKg: z.coerce.number().nonnegative().optional(),
         durationSeconds: z.coerce.number().int().positive().optional(),
       }),
     )

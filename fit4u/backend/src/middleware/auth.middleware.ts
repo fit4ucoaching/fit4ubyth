@@ -19,9 +19,11 @@ export interface AuthenticatedUser {
   isPremium: boolean;
 }
 
-declare module "express-serve-static-core" {
-  interface Request {
-    user?: AuthenticatedUser;
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthenticatedUser;
+    }
   }
 }
 

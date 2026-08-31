@@ -57,7 +57,15 @@ describe("shopifyService.syncProducts", () => {
 });
 
 describe("shopifyService.handleWebhook", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // `vi.clearAllMocks()` ne réinitialise pas les implémentations posées via
+    // `mockResolvedValue` (seulement l'historique des appels) — sans ce reset
+    // explicite, un `.mockResolvedValue(true)` posé dans un test précédent
+    // (ex. "idempotence" ci-dessous) reste actif pour tous les tests suivants.
+    vi.mocked(webhookEventService.isDuplicate).mockResolvedValue(false);
+    vi.mocked(webhookEventService.recordIncoming).mockResolvedValue({ id: "rec1" } as never);
+  });
 
   it("ignore un événement déjà traité (idempotence)", async () => {
     vi.mocked(webhookEventService.isDuplicate).mockResolvedValue(true);

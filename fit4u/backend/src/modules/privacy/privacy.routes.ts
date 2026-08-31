@@ -13,8 +13,8 @@ const controller = new PrivacyController(service);
 /** RGPD (Volume 8 §58) — export et suppression, accessibles uniquement par l'utilisateur concerné (jamais par un admin via cette route). */
 export const privacyRouter = Router();
 
-/** @openapi /privacy/export: get: { summary: Export complet des données personnelles (RGPD), tags: [Privacy], responses: { 200: { description: OK } } } */
+/** @openapi { "/privacy/export": { get: { summary: Export complet des données personnelles (RGPD), tags: [Privacy], responses: { 200: { description: OK } } } } } */
 privacyRouter.get("/export", requireAuth, asyncHandler(controller.export));
 
-/** @openapi /privacy/account: delete: { summary: Suppression/anonymisation du compte (RGPD), tags: [Privacy], responses: { 200: { description: OK } } } */
+/** @openapi { "/privacy/account": { delete: { summary: Suppression/anonymisation du compte (RGPD), tags: [Privacy], responses: { 200: { description: OK } } } } } */
 privacyRouter.delete("/account", requireAuth, asyncHandler(controller.deleteAccount));

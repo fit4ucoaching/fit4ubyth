@@ -6,13 +6,19 @@ export class AdminPaymentsRepository extends BaseRepository {
     const since30d = new Date();
     since30d.setUTCDate(since30d.getUTCDate() - 30);
 
+    const subscriptionBreakdownQuery = this.db.profile.groupBy({
+      by: ["subscription"],
+      orderBy: { subscription: "asc" },
+      _count: { _all: true },
+    });
+
     const [succeeded, failed, refunded, activeVip, totalUsers, subscriptionBreakdown, activeSubscriptions] = await this.db.$transaction([
       this.db.payment.aggregate({ where: { status: "PAID", createdAt: { gte: since30d } }, _sum: { amountCents: true }, _count: true }),
       this.db.payment.count({ where: { status: "FAILED", createdAt: { gte: since30d } } }),
       this.db.payment.aggregate({ where: { status: "REFUNDED", createdAt: { gte: since30d } }, _sum: { amountCents: true }, _count: true }),
       this.db.vipAccess.count({ where: { isActive: true } }),
       this.db.user.count({ where: { deletedAt: null } }),
-      this.db.profile.groupBy({ by: ["subscription"], _count: true }),
+      subscriptionBreakdownQuery,
       // MRR réel (Volume 7 §47 corrigé) : somme des prix exacts des
       // abonnements digitaux actifs, normalisée au mois. Remplace
       // l'ancienne heuristique (somme des paiements Boutique des 30
@@ -36,7 +42,7 @@ export class AdminPaymentsRepository extends BaseRepository {
         totalUsers,
       },
       activeVip,
-      subscriptionBreakdown: subscriptionBreakdown.map((s) => ({ subscription: s.subscription, count: s._count })),
+      subscriptionBreakdown: subscriptionBreakdown.map((s) => ({ subscription: s.subscription, count: s._count._all })),
       estimatedMrrCents: mrrCents,
       activeSubscriptionsCount: activeSubscriptions.length,
     };

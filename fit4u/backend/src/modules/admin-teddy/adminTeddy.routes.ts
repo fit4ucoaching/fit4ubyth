@@ -18,7 +18,7 @@ const controller = new AdminTeddyController();
  */
 export const adminTeddyRouter = Router();
 
-/** @openapi /admin/teddy/prompts/{key}/history: get: { summary: Historique des versions d'un Domain Prompt, tags: [Admin - Teddy], responses: { 200: { description: OK } } } */
+/** @openapi { "/admin/teddy/prompts/{key}/history": { get: { summary: Historique des versions d'un Domain Prompt, tags: [Admin - Teddy], responses: { 200: { description: OK } } } } } */
 adminTeddyRouter.get(
   "/prompts/:key/history",
   requirePermission("teddy.read"),
@@ -26,14 +26,14 @@ adminTeddyRouter.get(
   asyncHandler(controller.getHistory),
 );
 
-/** @openapi /admin/teddy/prompts: post: { summary: Crée une nouvelle version d'un Domain Prompt (inactive par défaut), tags: [Admin - Teddy], responses: { 201: { description: OK } } } */
+/** @openapi { "/admin/teddy/prompts": { post: { summary: Crée une nouvelle version d'un Domain Prompt (inactive par défaut), tags: [Admin - Teddy], responses: { 201: { description: OK } } } } } */
 adminTeddyRouter.post("/prompts", requirePermission("teddy.write"), validateBody(createPromptVersionSchema), asyncHandler(controller.createVersion));
 
-/** @openapi /admin/teddy/prompts/{id}/activate: post: { summary: Déploie une version (désactive l'ancienne active), tags: [Admin - Teddy], responses: { 200: { description: OK } } } */
+/** @openapi { "/admin/teddy/prompts/{id}/activate": { post: { summary: Déploie une version (désactive l'ancienne active), tags: [Admin - Teddy], responses: { 200: { description: OK } } } } } */
 adminTeddyRouter.post("/prompts/:id/activate", requirePermission("teddy.write"), validateParams(idParamSchema), asyncHandler(controller.activate));
 
-/** @openapi /admin/teddy/prompts/{id}/deactivate: post: { summary: Rollback — désactive une version (repli sur la constante codée), tags: [Admin - Teddy], responses: { 200: { description: OK } } } */
+/** @openapi { "/admin/teddy/prompts/{id}/deactivate": { post: { summary: Rollback — désactive une version (repli sur la constante codée), tags: [Admin - Teddy], responses: { 200: { description: OK } } } } } */
 adminTeddyRouter.post("/prompts/:id/deactivate", requirePermission("teddy.write"), validateParams(idParamSchema), asyncHandler(controller.deactivate));
 
-/** @openapi /admin/teddy/prompts/preview: post: { summary: Teste un Domain Prompt candidat sur un message d'exemple, sans l'activer, tags: [Admin - Teddy], responses: { 200: { description: OK } } } */
+/** @openapi { "/admin/teddy/prompts/preview": { post: { summary: Teste un Domain Prompt candidat sur un message d'exemple, sans l'activer, tags: [Admin - Teddy], responses: { 200: { description: OK } } } } } */
 adminTeddyRouter.post("/prompts/preview", requirePermission("teddy.write"), validateBody(previewPromptSchema), asyncHandler(controller.preview));

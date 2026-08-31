@@ -15,11 +15,11 @@ const controller = new SubscriptionsController(service, repository);
 /** Abonnements digitaux (Volume 7) — distinct de `/payments` (Domaine Boutique). */
 export const subscriptionsRouter = Router();
 
-/** @openapi /subscriptions: get: { summary: Abonnement actif de l'utilisateur, tags: [Subscriptions], responses: { 200: { description: OK } } } */
+/** @openapi { "/subscriptions": { get: { summary: Abonnement actif de l'utilisateur, tags: [Subscriptions], responses: { 200: { description: OK } } } } } */
 subscriptionsRouter.get("/", requireAuth, asyncHandler(controller.current));
 
-/** @openapi /subscriptions: post: { summary: Souscrit à une offre, tags: [Subscriptions], responses: { 201: { description: OK } } } */
+/** @openapi { "/subscriptions": { post: { summary: Souscrit à une offre, tags: [Subscriptions], responses: { 201: { description: OK } } } } } */
 subscriptionsRouter.post("/", requireAuth, validateBody(createSubscriptionSchema), asyncHandler(controller.create));
 
-/** @openapi /subscriptions/cancel: post: { summary: Annule l'abonnement (cancelAtPeriodEnd par défaut), tags: [Subscriptions], responses: { 200: { description: OK } } } */
+/** @openapi { "/subscriptions/cancel": { post: { summary: Annule l'abonnement (cancelAtPeriodEnd par défaut), tags: [Subscriptions], responses: { 200: { description: OK } } } } } */
 subscriptionsRouter.post("/cancel", requireAuth, validateBody(cancelSubscriptionSchema), asyncHandler(controller.cancel));

@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionMessageToolCall } from "openai/resources/chat/completions";
 
@@ -75,5 +77,5 @@ export async function completeCeoTurn(
 }
 
 function buildCeoMessage(content: string): TeddyMessage {
-  return { id: crypto.randomUUID(), role: "teddy", content, createdAt: new Date().toISOString() };
+  return { id: randomUUID(), role: "teddy", content, createdAt: new Date().toISOString() };
 }

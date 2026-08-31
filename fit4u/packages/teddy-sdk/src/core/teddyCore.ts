@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionMessageToolCall } from "openai/resources/chat/completions";
 
@@ -160,7 +162,7 @@ function toOpenAIMessage(m: { role: "user" | "teddy" | "system"; content: string
 }
 
 function buildTeddyMessage(content: string): TeddyMessage {
-  return { id: crypto.randomUUID(), role: "teddy", content, createdAt: new Date().toISOString() };
+  return { id: randomUUID(), role: "teddy", content, createdAt: new Date().toISOString() };
 }
 
 function inferSuggestedActions(content: string, domain: DetectedDomain): TeddySuggestedAction[] | undefined {

@@ -17,15 +17,19 @@ import { entitlementService } from "../services/entitlement.service";
  */
 export function requireFeature(featureKey: string) {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
-    if (!req.user) {
-      throw new AuthenticationError();
-    }
+    try {
+      if (!req.user) {
+        throw new AuthenticationError();
+      }
 
-    const granted = await entitlementService.hasFeature({ userId: req.user.id, roles: req.user.roles }, featureKey);
-    if (!granted) {
-      throw new AuthorizationError(`Fonctionnalité réservée — mise à niveau requise (${featureKey}).`);
-    }
+      const granted = await entitlementService.hasFeature({ userId: req.user.id, roles: req.user.roles }, featureKey);
+      if (!granted) {
+        throw new AuthorizationError(`Fonctionnalité réservée — mise à niveau requise (${featureKey}).`);
+      }
 
-    next();
+      next();
+    } catch (err) {
+      next(err);
+    }
   };
 }
