@@ -18,7 +18,7 @@ const controller = new AdminShopController(service);
  * synchronisation catalogue (`POST /admin/shop/sync`) existe déjà
  * directement sur `admin.routes.ts` (Volume 7) — non dupliquée ici.
  */
-export const adminShopRouter = Router();
+export const adminShopRouter: Router = Router();
 
 /** @openapi { "/admin/shop/products": { get: { summary: Liste paginée du catalogue (source Shopify), tags: [Admin - Shop], responses: { 200: { description: OK } } } } } */
 adminShopRouter.get("/products", requirePermission("shop.read"), validateQuery(listProductsQuerySchema), asyncHandler(controller.listProducts));

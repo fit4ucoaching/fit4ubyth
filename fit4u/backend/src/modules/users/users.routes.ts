@@ -23,7 +23,7 @@ const upload = multer({
   },
 });
 
-export const usersRouter = Router();
+export const usersRouter: Router = Router();
 
 usersRouter.use(requireAuth);
 

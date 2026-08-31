@@ -21,7 +21,7 @@ const communityRepository = new CommunityRepository();
 const communityService = new CommunityService(communityRepository);
 const communityController = new CommunityController(communityService);
 
-export const communityRouter = Router();
+export const communityRouter: Router = Router();
 
 /** @openapi { "/posts": { get: { summary: Flux public paginé, tags: [Community], responses: { 200: { description: OK } } } } } */
 communityRouter.get("/posts", validateQuery(listQuerySchema), asyncHandler(communityController.listPosts));

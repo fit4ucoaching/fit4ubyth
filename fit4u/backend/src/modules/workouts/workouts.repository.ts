@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 import { BaseRepository } from "../../repositories/base.repository";
 
 export class WorkoutsRepository extends BaseRepository {
@@ -25,7 +27,9 @@ export class WorkoutsRepository extends BaseRepository {
   }
 
   logEvent(workoutSessionId: string, event: string, metadata?: Record<string, unknown>) {
-    return this.db.workoutHistory.create({ data: { workoutSessionId, event, metadata } });
+    return this.db.workoutHistory.create({
+      data: { workoutSessionId, event, metadata: metadata as Prisma.InputJsonValue | undefined },
+    });
   }
 
   pause(id: string) {

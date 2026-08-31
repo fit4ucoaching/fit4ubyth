@@ -68,7 +68,7 @@ export class SubscriptionsRepository extends BaseRepository {
   }
 
   updatePaymentByProviderId(providerPaymentId: string, data: { status?: string; refundedAmountCents?: number; refundReason?: string; refundedAt?: Date }) {
-    return this.db.subscriptionPayment.updateMany({ where: { providerPaymentId }, data });
+    return this.db.subscriptionPayment.updateMany({ where: { providerPaymentId }, data: data as never });
   }
 
   updateProfileStripeCustomer(userId: string, stripeCustomerId: string) {

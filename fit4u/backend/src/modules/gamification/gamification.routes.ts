@@ -12,7 +12,7 @@ const gamificationRepository = new GamificationRepository();
 const gamificationService = new GamificationService(gamificationRepository);
 const gamificationController = new GamificationController(gamificationService);
 
-export const gamificationRouter = Router();
+export const gamificationRouter: Router = Router();
 gamificationRouter.use(requireAuth);
 
 /** @openapi { "/gamification/profile": { get: { summary: XP et niveau courant, tags: [Gamification], responses: { 200: { description: OK } } } } } */

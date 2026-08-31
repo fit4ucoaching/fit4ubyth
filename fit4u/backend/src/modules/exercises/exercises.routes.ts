@@ -19,7 +19,7 @@ const exercisesRepository = new ExercisesRepository();
 const exercisesService = new ExercisesService(exercisesRepository);
 const exercisesController = new ExercisesController(exercisesService);
 
-export const exercisesRouter = Router();
+export const exercisesRouter: Router = Router();
 
 /**
  * @openapi

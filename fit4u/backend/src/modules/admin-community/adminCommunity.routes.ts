@@ -14,7 +14,7 @@ const service = new AdminCommunityService(repository);
 const controller = new AdminCommunityController(service);
 
 /** Montées sous `/admin/community` — permission `community.read`/`community.moderate` (Volume 6, rôle MODERATOR dédié). */
-export const adminCommunityRouter = Router();
+export const adminCommunityRouter: Router = Router();
 
 /** @openapi { "/admin/community/reports": { get: { summary: Liste paginée des signalements, tags: [Admin - Community], responses: { 200: { description: OK } } } } } */
 adminCommunityRouter.get("/reports", requirePermission("community.read"), validateQuery(listReportsQuerySchema), asyncHandler(controller.listReports));

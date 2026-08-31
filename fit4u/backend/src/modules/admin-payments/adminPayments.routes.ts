@@ -11,7 +11,7 @@ const service = new AdminPaymentsService(repository);
 const controller = new AdminPaymentsController(service);
 
 /** Montées sous `/admin/payments` par `modules/admin/admin.routes.ts`. */
-export const adminPaymentsRouter = Router();
+export const adminPaymentsRouter: Router = Router();
 
 /** @openapi { "/admin/payments/overview": { get: { summary: MRR/ARR/conversion, tags: [Admin - Payments], responses: { 200: { description: OK } } } } } */
 adminPaymentsRouter.get("/overview", requirePermission("payments.read"), asyncHandler(controller.overview));

@@ -15,7 +15,7 @@ const progressService = new ProgressService(progressRepository, localStorageServ
 const progressController = new ProgressController(progressService);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
-export const progressRouter = Router();
+export const progressRouter: Router = Router();
 progressRouter.use(requireAuth);
 
 /** @openapi { "/progress/weight": { post: { summary: Enregistre une pesée, tags: [Progress], responses: { 201: { description: OK } } } } } */

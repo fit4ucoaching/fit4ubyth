@@ -16,7 +16,7 @@ const profilesRepository = new ProfilesRepository();
 const profilesService = new ProfilesService(profilesRepository);
 const profilesController = new ProfilesController(profilesService);
 
-export const profilesRouter = Router();
+export const profilesRouter: Router = Router();
 profilesRouter.use(requireAuth);
 
 /**

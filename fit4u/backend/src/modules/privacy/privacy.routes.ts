@@ -11,7 +11,7 @@ const service = new PrivacyService(repository);
 const controller = new PrivacyController(service);
 
 /** RGPD (Volume 8 §58) — export et suppression, accessibles uniquement par l'utilisateur concerné (jamais par un admin via cette route). */
-export const privacyRouter = Router();
+export const privacyRouter: Router = Router();
 
 /** @openapi { "/privacy/export": { get: { summary: Export complet des données personnelles (RGPD), tags: [Privacy], responses: { 200: { description: OK } } } } } */
 privacyRouter.get("/export", requireAuth, asyncHandler(controller.export));

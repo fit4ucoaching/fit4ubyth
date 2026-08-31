@@ -9,7 +9,7 @@ const service = new AdminAnalyticsService();
 const controller = new AdminAnalyticsController(service);
 
 /** Montées sous `/admin/analytics` — permission `analytics.read` (Volume 6, rôle ANALYST dédié). */
-export const adminAnalyticsRouter = Router();
+export const adminAnalyticsRouter: Router = Router();
 
 /** @openapi { "/admin/analytics/user-growth": { get: { summary: Nouveaux utilisateurs par jour, tags: [Admin - Analytics], responses: { 200: { description: OK } } } } } */
 adminAnalyticsRouter.get("/user-growth", requirePermission("analytics.read"), asyncHandler(controller.userGrowth));

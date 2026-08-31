@@ -12,7 +12,7 @@ const paymentsRepository = new PaymentsRepository();
 const paymentsService = new PaymentsService(paymentsRepository);
 const paymentsController = new PaymentsController(paymentsService);
 
-export const paymentsRouter = Router();
+export const paymentsRouter: Router = Router();
 
 /** @openapi { "/payments/create-intent": { post: { summary: Crée l'intention de paiement (Stripe/PayPal), tags: [Payments], responses: { 201: { description: OK } } } } } */
 paymentsRouter.post(

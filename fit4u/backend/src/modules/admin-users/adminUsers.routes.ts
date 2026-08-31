@@ -18,7 +18,7 @@ const adminUsersController = new AdminUsersController(adminUsersService);
  * `requireAuth`/`requireRole` déjà posé par le routeur admin parent, ce
  * fichier n'ajoute que les permissions granulaires (Volume 6 RBAC) par action.
  */
-export const adminUsersRouter = Router();
+export const adminUsersRouter: Router = Router();
 
 /** @openapi { "/admin/users": { get: { summary: Liste paginée, recherche, filtres, tri, tags: [Admin - Users], responses: { 200: { description: OK } } } } } */
 adminUsersRouter.get("/", requirePermission("users.read"), validateQuery(listUsersQuerySchema), asyncHandler(adminUsersController.list));

@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 import { BaseRepository } from "../../repositories/base.repository";
 
 export class AdminRepository extends BaseRepository {
@@ -25,7 +27,9 @@ export class AdminRepository extends BaseRepository {
   }
 
   logAction(params: { performedBy: string; action: string; targetType?: string; targetId?: string; metadata?: Record<string, unknown> }) {
-    return this.db.adminLog.create({ data: params });
+    return this.db.adminLog.create({
+      data: { ...params, metadata: params.metadata as Prisma.InputJsonValue | undefined },
+    });
   }
 
   createTicket(userId: string, subject: string, priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT") {

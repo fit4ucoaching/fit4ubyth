@@ -12,7 +12,7 @@ const controller = new ShopifyController();
  * Le déclenchement de synchronisation manuelle vit dans `modules/admin`
  * (chaîne de middlewares auth+rôle+audit complète), jamais ici.
  */
-export const shopifyRouter = Router();
+export const shopifyRouter: Router = Router();
 
 /**
  * @openapi

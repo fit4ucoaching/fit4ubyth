@@ -23,7 +23,7 @@ const authRepository = new AuthRepository();
 const authService = new AuthService(authRepository);
 const authController = new AuthController(authService);
 
-export const authRouter = Router();
+export const authRouter: Router = Router();
 
 /**
  * @openapi

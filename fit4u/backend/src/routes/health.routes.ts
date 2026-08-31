@@ -3,7 +3,7 @@ import { Router } from "express";
 import { livenessHandler, readinessHandler } from "../controllers/health.controller";
 import { asyncHandler } from "../utils/asyncHandler";
 
-export const healthRouter = Router();
+export const healthRouter: Router = Router();
 
 /**
  * @openapi

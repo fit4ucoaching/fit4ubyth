@@ -39,7 +39,7 @@ const adminController = new AdminController(adminService);
  * `requirePermission()` (`config/permissions.ts`), jamais un simple
  * contrôle de rôle générique une fois qu'il existe 8 périmètres différents.
  */
-export const adminRouter = Router();
+export const adminRouter: Router = Router();
 adminRouter.use(requireAuth, requireRole(...ADMIN_ROLE_NAMES), auditContextMiddleware);
 
 adminRouter.use("/users", adminUsersRouter);

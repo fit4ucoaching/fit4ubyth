@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Module dédié au Coach IA Teddy — toute la logique IA du produit vit ici, jamais dispersée ailleurs.",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings=0",
     "test": "vitest run"
@@ -15,6 +16,7 @@
     "openai": "^4.56.0"
   },
   "devDependencies": {
+    "@types/node": "^20.14.0",
     "vitest": "^2.0.0"
   }
 }

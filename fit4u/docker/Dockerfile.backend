@@ -2,6 +2,14 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 RUN corepack enable
+# Le moteur Prisma (binaire natif) est lié dynamiquement à libssl — sans ce
+# paquet, `prisma generate` ne détecte aucun OpenSSL et retombe par défaut
+# sur une cible openssl-1.1.x, absente d'Alpine récent (3.23+, OpenSSL 3
+# uniquement) : le client crashe au démarrage avec "Error loading shared
+# library libssl.so.1.1". Installé ici (stage `base`) pour être présent à
+# la fois lors de `prisma generate` (stage `build`) et à l'exécution
+# (stage `runner`, qui hérite de `base`, pas de `deps`/`build`).
+RUN apk add --no-cache openssl
 
 FROM base AS deps
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
@@ -15,15 +23,27 @@ COPY . .
 # importe `@prisma/client` généré, sans quoi le build échoue silencieusement
 # sur des types manquants (bug corrigé Volume 8 : cette étape manquait).
 RUN pnpm prisma:generate
+# `@fit4u/teddy-sdk` doit être compilé AVANT le backend — package pnpm
+# workspace consommé par un `require()` réel à l'exécution (pas seulement
+# des imports de types), son `package.json` pointe vers `dist/`, jamais
+# `src/*.ts` directement (Node ne sait pas charger du TypeScript brut).
+RUN pnpm --filter @fit4u/teddy-sdk build
 RUN pnpm --filter @fit4u/backend build
 
 FROM base AS runner
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=build /app/backend/dist ./dist
-COPY --from=build /app/backend/package.json ./package.json
+# pnpm ne hisse PAS les dépendances propres à `backend/package.json` vers
+# `/app/node_modules` — elles ne vivent que sous forme de symlinks relatifs
+# dans `backend/node_modules` (ex. `express -> ../../node_modules/.pnpm/...`).
+# On préserve donc la structure exacte du monorepo (au lieu d'aplatir
+# `backend/dist` vers `/app/dist`) pour que ces symlinks relatifs — ainsi
+# que ceux de `packages/*/node_modules` vers le store `.pnpm` central —
+# continuent de résoudre correctement une fois copiés (bug corrigé : la
+# version aplatie provoquait `Cannot find module 'express'` au démarrage).
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages ./packages
+COPY --from=build /app/backend ./backend
 COPY --from=build /app/prisma ./prisma
 EXPOSE 4000
 
@@ -36,4 +56,4 @@ EXPOSE 4000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
   CMD node -e "require('http').get('http://localhost:4000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
-CMD ["node", "dist/server.js"]
+CMD ["node", "backend/dist/server.js"]

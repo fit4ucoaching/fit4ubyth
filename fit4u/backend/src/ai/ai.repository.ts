@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 import { BaseRepository } from "../repositories/base.repository";
 
 export class AIRepository extends BaseRepository {
@@ -46,7 +48,7 @@ export class AIRepository extends BaseRepository {
         conversationId: params.conversationId,
         role: params.role,
         content: params.content,
-        metadata: params.metadata,
+        metadata: params.metadata as Prisma.InputJsonValue | undefined,
       },
     });
   }

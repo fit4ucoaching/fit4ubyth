@@ -18,7 +18,7 @@ import {
 const aiController = new AIController(aiService);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-export const aiRouter = Router();
+export const aiRouter: Router = Router();
 aiRouter.use(requireAuth);
 
 /**

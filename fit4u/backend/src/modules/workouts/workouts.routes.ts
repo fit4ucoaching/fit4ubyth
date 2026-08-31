@@ -17,7 +17,7 @@ const workoutsRepository = new WorkoutsRepository();
 const workoutsService = new WorkoutsService(workoutsRepository);
 const workoutsController = new WorkoutsController(workoutsService);
 
-export const workoutsRouter = Router();
+export const workoutsRouter: Router = Router();
 workoutsRouter.use(requireAuth);
 
 /** @openapi { "/workouts/start": { post: { summary: Démarre une séance, tags: [Workouts], responses: { 201: { description: OK } } } } } */

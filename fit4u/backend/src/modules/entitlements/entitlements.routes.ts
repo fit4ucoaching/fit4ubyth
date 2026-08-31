@@ -14,7 +14,7 @@ const controller = new EntitlementsController();
  * statut Premium fourni par le client" reste vrai même si CE client est
  * celui qui vient de le recevoir (Volume 7 §43).
  */
-export const entitlementsRouter = Router();
+export const entitlementsRouter: Router = Router();
 
 /** @openapi { "/entitlements/me": { get: { summary: Résumé des droits de l'utilisateur connecté, tags: [Entitlements], responses: { 200: { description: OK } } } } } */
 entitlementsRouter.get("/me", requireAuth, asyncHandler(controller.me));

@@ -13,7 +13,7 @@ const service = new SubscriptionsService(repository);
 const controller = new SubscriptionsController(service, repository);
 
 /** Abonnements digitaux (Volume 7) — distinct de `/payments` (Domaine Boutique). */
-export const subscriptionsRouter = Router();
+export const subscriptionsRouter: Router = Router();
 
 /** @openapi { "/subscriptions": { get: { summary: Abonnement actif de l'utilisateur, tags: [Subscriptions], responses: { 200: { description: OK } } } } } */
 subscriptionsRouter.get("/", requireAuth, asyncHandler(controller.current));

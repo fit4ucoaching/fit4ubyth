@@ -17,7 +17,7 @@ const service = new AdminSubscriptionsService(repository);
 const controller = new AdminSubscriptionsController(service);
 
 /** Montées sous `/admin/subscriptions` par `modules/admin/admin.routes.ts`. */
-export const adminSubscriptionsRouter = Router();
+export const adminSubscriptionsRouter: Router = Router();
 
 /** @openapi { "/admin/subscriptions/plans": { get: { summary: Liste le catalogue d'offres, tags: [Admin - Subscriptions], responses: { 200: { description: OK } } } } } */
 adminSubscriptionsRouter.get("/plans", requirePermission("subscriptions.read"), asyncHandler(controller.listPlans));

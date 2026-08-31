@@ -31,7 +31,7 @@ import { shopifyRouter } from "../shopify/shopify.routes";
  * propre segment tel que spécifié par le Master Prompt Volume 3, qui ne les
  * préfixe pas par `/nutrition` ou `/community`.
  */
-export const apiRouter = Router();
+export const apiRouter: Router = Router();
 
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/users", usersRouter);

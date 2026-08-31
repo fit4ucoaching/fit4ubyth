@@ -17,7 +17,7 @@ const service = new AdminNutritionService(repository);
 const controller = new AdminNutritionController(service);
 
 /** Montées sous `/admin/nutrition` par `modules/admin/admin.routes.ts` — permission `nutrition.read`/`nutrition.write` (Volume 6, rôle NUTRITION dédié). */
-export const adminNutritionRouter = Router();
+export const adminNutritionRouter: Router = Router();
 
 /** @openapi { "/admin/nutrition/foods": { get: { summary: Liste paginée des aliments, tags: [Admin - Nutrition], responses: { 200: { description: OK } } } } } */
 adminNutritionRouter.get("/foods", requirePermission("nutrition.read"), validateQuery(listFoodsQuerySchema), asyncHandler(controller.listFoods));

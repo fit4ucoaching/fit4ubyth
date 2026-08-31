@@ -16,7 +16,7 @@ const controller = new AdminTeddyController();
  * Motivation/Analytics/Planner) — aucune route ici ne touche jamais aux
  * prompts d'identité/sécurité, constantes TypeScript non exposées.
  */
-export const adminTeddyRouter = Router();
+export const adminTeddyRouter: Router = Router();
 
 /** @openapi { "/admin/teddy/prompts/{key}/history": { get: { summary: Historique des versions d'un Domain Prompt, tags: [Admin - Teddy], responses: { 200: { description: OK } } } } } */
 adminTeddyRouter.get(

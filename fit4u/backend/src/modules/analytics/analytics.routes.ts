@@ -10,7 +10,7 @@ const analyticsRepository = new AnalyticsRepository();
 const analyticsService = new AnalyticsService(analyticsRepository);
 const analyticsController = new AnalyticsController(analyticsService);
 
-export const analyticsRouter = Router();
+export const analyticsRouter: Router = Router();
 analyticsRouter.use(requireAuth);
 
 /** @openapi { "/analytics/leaderboard/{kind}": { get: { summary: Classement (ex. "xp"), tags: [Analytics], responses: { 200: { description: OK } } } } } */

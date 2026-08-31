@@ -21,7 +21,7 @@ const programsRepository = new ProgramsRepository();
 const programsService = new ProgramsService(programsRepository, aiService);
 const programsController = new ProgramsController(programsService);
 
-export const programsRouter = Router();
+export const programsRouter: Router = Router();
 
 /**
  * @openapi

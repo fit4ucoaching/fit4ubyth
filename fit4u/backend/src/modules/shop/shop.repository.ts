@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 import { BaseRepository } from "../../repositories/base.repository";
 
 export class ShopRepository extends BaseRepository {
@@ -58,7 +60,7 @@ export class ShopRepository extends BaseRepository {
           subtotalCents,
           discountCents: params.discountCents,
           totalCents,
-          shippingAddress: params.shippingAddress,
+          shippingAddress: params.shippingAddress as Prisma.InputJsonValue,
           items: {
             create: params.items.map((i) => ({
               productId: i.productId,

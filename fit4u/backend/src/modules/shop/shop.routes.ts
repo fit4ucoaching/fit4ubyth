@@ -13,7 +13,7 @@ const shopRepository = new ShopRepository();
 const shopService = new ShopService(shopRepository);
 const shopController = new ShopController(shopService);
 
-export const shopRouter = Router();
+export const shopRouter: Router = Router();
 
 /** @openapi { "/shop/products": { get: { summary: Catalogue paginé (cache local Shopify), tags: [Shop], responses: { 200: { description: OK } } } } } */
 shopRouter.get("/products", validateQuery(listProductsQuerySchema), asyncHandler(shopController.listProducts));

@@ -15,7 +15,7 @@ const nutritionService = new NutritionService(nutritionRepository, aiService);
 const nutritionController = new NutritionController(nutritionService);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
-export const nutritionRouter = Router();
+export const nutritionRouter: Router = Router();
 
 /** @openapi { "/foods": { get: { summary: Liste paginée des aliments (recherche, filtre catégorie), tags: [Nutrition], responses: { 200: { description: OK } } } } } */
 nutritionRouter.get("/foods", asyncHandler(nutritionController.listFoods));
